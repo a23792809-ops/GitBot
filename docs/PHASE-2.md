@@ -46,6 +46,30 @@ Because the containment check runs on the **resolved** path, a symlink such as `
 - Slug defaults to `local/<dirname>` when not supplied; deriving it from `git remote get-url origin` belongs with the git adapter.
 - No rate limiting on the local API; loopback + token is considered sufficient for a single-user local tool. Revisit if the dashboard is ever exposed beyond localhost (it will not be, by policy).
 
+## Phase 2b — read-only git inspection
+
+`backend/gitbot/gitops/repo.py` adds:
+
+| Method | Git command | Notes |
+|---|---|---|
+| `status()` | `status --porcelain=v2 --branch -z` | branch, HEAD, upstream, ahead/behind, changed files, detached detection |
+| `diff(staged=, base=, max_chars=)` | `diff --no-color --no-ext-diff` + `diff --name-only` | patch capped at 256 KiB by default; `truncated` flag |
+| `branch_exists(name)` | `branch --list --format=...` | used by preflight |
+| `preflight(task_id)` | reads only | reports dirty tree, detached HEAD, existing `gitbot/<id>` branch |
+
+Process hygiene: fixed `cwd`, argv lists, `GIT_TERMINAL_PROMPT=0`, `GIT_ASKPASS=true`, `GIT_PAGER=cat`, `LC_ALL=C` for stable parsing, redacted stderr in errors.
+
+HTTP (GET only, no token needed, loopback only):
+
+```
+GET /api/repos/{id}/git/status
+GET /api/repos/{id}/git/diff?staged=false&base=HEAD~1
+GET /api/repos/{id}/git/preflight?task_id=run-42
+```
+
+The adapter exposes **no** checkout, branch creation, commit, or push. A test asserts that calling all three endpoints leaves `HEAD` and the working tree byte-identical.
+
 ## Next step
 
-Phase 2b: read-only git adapter (`status`, `diff`, branch naming, clean-tree preflight) with dry-run behaviour, still with no commits or pushes.
+Phase 3: task engine + OpenCode Tier 1 (`opencode run --format json`), on a `gitbot/<task-id>` branch created only after the preflight passes and the task is approved.
+

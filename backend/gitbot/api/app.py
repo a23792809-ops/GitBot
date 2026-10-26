@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 
 from gitbot import __version__
 from gitbot.api.routes import audit as audit_routes
+from gitbot.api.routes import git as git_routes
 from gitbot.api.routes import github as github_routes
 from gitbot.api.routes import health as health_routes
 from gitbot.api.routes import repos as repo_routes
@@ -77,6 +78,7 @@ def create_app(
     app.include_router(health_routes.router)
     app.include_router(github_routes.router)
     app.include_router(repo_routes.router)
+    app.include_router(git_routes.router)
     app.include_router(audit_routes.router)
     return app
 
