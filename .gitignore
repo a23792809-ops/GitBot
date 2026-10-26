@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Local configuration and secrets — never commit
+.env
+.env.*
+!.env.example
+
+# Local state: SQLite databases, WAL files, logs
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.log
+logs/
+state/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Frontend (Phase 4+)
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# Build artifacts
+dist/
+build/
+
+# NOTE: uv.lock is intentionally tracked for reproducible installs.
