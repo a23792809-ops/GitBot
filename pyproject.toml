@@ -61,7 +61,7 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 # Tests deliberately contain synthetic secret-shaped values, bind addresses,
 # and asserts; none of it ships in the runtime package.
-"tests/**" = ["S101", "S104", "S105", "S106", "S108"]
+"tests/**" = ["S101", "S104", "S105", "S106", "S108", "S603", "S607"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["gitbot"]

@@ -88,13 +88,23 @@ def _register_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(RequestValidationError)
     async def handle_validation_error(_: Request, exc: RequestValidationError) -> JSONResponse:
+        # exc.errors() can carry non-serializable objects (e.g. a ValueError in
+        # "ctx"), so only the stable, serializable fields are exposed.
+        errors = [
+            {
+                "loc": [str(part) for part in error.get("loc", ())],
+                "msg": str(error.get("msg", "")),
+                "type": str(error.get("type", "")),
+            }
+            for error in exc.errors()
+        ]
         return JSONResponse(
             status_code=422,
             content={
                 "error": {
                     "code": "validation_error",
                     "message": "request validation failed",
-                    "details": {"errors": exc.errors()},
+                    "details": {"errors": errors},
                 }
             },
         )

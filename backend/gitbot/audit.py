@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from typing import Any
 
 from gitbot.db import Database
 from gitbot.models import AuditOutcome
 from gitbot.security import redact_value
+from gitbot.timeutil import utc_now_iso
 
 MAX_LIMIT = 500
 
@@ -56,8 +56,7 @@ class AuditEntry:
 
 
 def _now() -> str:
-    """UTC timestamp in the same ``...Z`` form SQLite writes for migrations."""
-    return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+    return utc_now_iso()
 
 
 class AuditLog:

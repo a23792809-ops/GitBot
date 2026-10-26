@@ -39,9 +39,19 @@ class PolicyViolation(GitBotError):
     http_status = 403
 
 
+class UnauthorizedError(GitBotError):
+    code = "unauthorized"
+    http_status = 401
+
+
 class NotFoundError(GitBotError):
     code = "not_found"
     http_status = 404
+
+
+class ConflictError(GitBotError):
+    code = "conflict"
+    http_status = 409
 
 
 class DatabaseError(GitBotError):

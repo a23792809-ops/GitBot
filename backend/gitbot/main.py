@@ -20,6 +20,7 @@ from gitbot.db import Database
 from gitbot.github.client import GhClient
 from gitbot.github.service import GithubService
 from gitbot.logging_setup import configure_logging
+from gitbot.security.tokens import ensure_token, rotate_token
 
 
 def build_application(settings: Settings) -> object:
@@ -40,17 +41,30 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="validate configuration, run migrations, then exit without serving",
     )
+    parser.add_argument(
+        "--rotate-token",
+        action="store_true",
+        help="rotate the local API token and exit (the value is never printed)",
+    )
     parser.add_argument("--version", action="version", version=f"gitbot {__version__}")
     args = parser.parse_args(argv)
 
     settings = load_settings(env_file=Path(".env"))
     configure_logging(settings.log_level, log_file=settings.data_dir / "gitbot.log")
+
+    if args.rotate_token:
+        settings.ensure_directories()
+        rotate_token(settings.token_file)
+        print(f"token rotated: {settings.token_file} (mode 0600)")
+        return 0
+
     app = build_application(settings)
 
     if args.check:
         print(f"ok: config valid, migrations applied, bind={settings.host}:{settings.port}")
         return 0
 
+    ensure_token(settings.token_file)
     uvicorn.run(app, host=settings.host, port=settings.port, log_config=None)
     return 0
 
