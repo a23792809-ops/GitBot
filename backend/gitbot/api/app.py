@@ -8,7 +8,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from gitbot import __version__
 from gitbot.api.routes import audit as audit_routes
@@ -16,6 +17,7 @@ from gitbot.api.routes import git as git_routes
 from gitbot.api.routes import github as github_routes
 from gitbot.api.routes import health as health_routes
 from gitbot.api.routes import repos as repo_routes
+from gitbot.api.routes import tasks as tasks_routes
 from gitbot.api.state import AppState, get_state
 from gitbot.audit import AuditLog
 from gitbot.config import Settings
@@ -78,8 +80,24 @@ def create_app(
     app.include_router(health_routes.router)
     app.include_router(github_routes.router)
     app.include_router(repo_routes.router)
+    app.include_router(tasks_routes.router)
     app.include_router(git_routes.router)
     app.include_router(audit_routes.router)
+
+    # Serve static dashboard
+    try:
+        from pathlib import Path
+
+        static_dir = Path(__file__).parent.parent / "static" / "dashboard"
+        if static_dir.exists():
+
+            @app.get("/dashboard")
+            async def dashboard() -> FileResponse:
+                return FileResponse(static_dir / "index.html")
+
+            app.mount("/static", StaticFiles(directory=str(static_dir.parent)), name="static")
+    except Exception:  # noqa: S110
+        pass
     return app
 
 

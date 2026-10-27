@@ -59,7 +59,7 @@ def test_health_reports_version_and_migrations(api: Callable[..., object]) -> No
     assert body["version"] == "0.1.0"
     assert body["dry_run"] is True
     assert body["local_only"] is True
-    assert body["database"]["migrations"] == ["0001_init"]
+    assert body["database"]["migrations"] == ["0001_init", "0002_tasks"]
     assert body["allowlisted_repos"] == 0
 
 

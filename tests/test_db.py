@@ -25,14 +25,14 @@ def test_migrate_creates_expected_tables(database: Database) -> None:
 
 def test_migrate_records_checksum(database: Database) -> None:
     applied = database.applied_migrations()
-    assert [migration.version for migration in applied] == ["0001_init"]
+    assert [migration.version for migration in applied] == ["0001_init", "0002_tasks"]
     assert len(applied[0].checksum) == 64
     assert applied[0].applied_at.endswith("Z")
 
 
 def test_migrate_is_idempotent(database: Database) -> None:
     assert database.migrate() == []
-    assert len(database.applied_migrations()) == 1
+    assert len(database.applied_migrations()) == 2
 
 
 def test_editing_an_applied_migration_is_rejected(tmp_path: Path) -> None:

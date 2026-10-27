@@ -78,3 +78,35 @@ class GhNotAuthenticated(UpstreamError):
 class UpstreamTimeout(UpstreamError):
     code = "upstream_timeout"
     http_status = 504
+
+
+class PermissionDenied(GitBotError):
+    code = "permission_denied"
+    http_status = 403
+
+
+class TaskError(GitBotError):
+    code = "task_error"
+    http_status = 400
+
+
+class InvalidStateTransition(TaskError):
+    code = "invalid_state_transition"
+    http_status = 409
+
+
+class ApprovalError(GitBotError):
+    code = "approval_error"
+    http_status = 403
+
+
+class ApprovalExpired(ApprovalError):
+    code = "approval_expired"
+
+
+class ApprovalInvalid(ApprovalError):
+    code = "approval_invalid"
+
+
+class ApprovalMismatch(ApprovalError):
+    code = "approval_mismatch"

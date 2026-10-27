@@ -52,6 +52,10 @@ class Settings:
     def is_dry_run(self) -> bool:
         return self.dry_run
 
+    @property
+    def token_path(self) -> Path:
+        return self.token_file
+
 
 def _parse_bool(key: str, raw: str) -> bool:
     value = raw.strip().lower()

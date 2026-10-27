@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitBot Dashboard</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; margin: 0; background: #0f172a; color: #e2e8f0; }
+        header { background: #1e293b; padding: 1rem 2rem; border-bottom: 1px solid #334155; }
+        header h1 { margin: 0; font-size: 1.5rem; }
+        .warning { background: #451a03; color: #fdba74; padding: 0.75rem 2rem; border-bottom: 1px solid #9a3412; }
+        main { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+        .section { background: #1e293b; border-radius: 8px; padding: 1.5rem; margin-bottom: 2rem; border: 1px solid #334155; }
+        .section h2 { margin-top: 0; color: #f1f5f9; }
+        button { background: #3b82f6; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; margin-right: 0.5rem; margin-bottom: 0.25rem; }
+        button:hover { background: #2563eb; }
+        button.danger { background: #ef4444; }
+        button.danger:hover { background: #dc2626; }
+        button.success { background: #10b981; }
+        button.success:hover { background: #059669; }
+        button.secondary { background: #475569; }
+        button.secondary:hover { background: #334155; }
+        input, select, textarea { background: #0f172a; color: #e2e8f0; border: 1px solid #475569; padding: 0.5rem; border-radius: 4px; width: 100%; font-family: inherit; font-size: 0.9rem; }
+        textarea { min-height: 80px; resize: vertical; }
+        .form-group { margin-bottom: 1rem; }
+        label { display: block; margin-bottom: 0.5rem; color: #cbd5e1; }
+        table { width: 100%; border-collapse: collapse; overflow-x: auto; display: block; }
+        thead, tbody { display: table; width: 100%; table-layout: fixed; }
+        th, td { padding: 0.75rem; text-align: left; border-bottom: 1px solid #334155; word-break: break-word; }
+        th { background: #0f172a; color: #94a3b8; }
+        .status { padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.875rem; display: inline-block; }
+        .status.queued { background: #475569; }
+        .status.running { background: #f59e0b; color: #000; }
+        .status.awaiting_review { background: #8b5cf6; }
+        .status.approved { background: #10b981; }
+        .status.committed { background: #059669; }
+        .status.failed { background: #ef4444; }
+        .status.cancelled { background: #64748b; }
+        .status.expired { background: #92400e; }
+        .hidden { display: none; }
+        .token-input { max-width: 400px; }
+        .error { color: #fca5a5; background: #7f1d1d; padding: 0.75rem; border-radius: 4px; margin-top: 0.5rem; }
+        .success { color: #86efac; background: #14532d; padding: 0.75rem; border-radius: 4px; margin-top: 0.5rem; }
+        pre { background: #0f172a; padding: 1rem; overflow-x: auto; border-radius: 4px; border: 1px solid #475569; white-space: pre-wrap; word-break: break-all; }
+        @media (max-width: 768px) {
+            main { padding: 1rem; }
+            .section { padding: 1rem; }
+            table { font-size: 0.875rem; }
+            th, td { padding: 0.5rem; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>🤖 GitBot Dashboard</h1>
+    </header>
+    <div class="warning">
+        ⚠️ Approval applies to the reviewed diff only. Subsequent modifications invalidate approvals. No automatic commits, pushes, or PRs. Token stored in memory only for this session.
+    </div>
+    <main>
+        <section class="section">
+            <h2>Authentication</h2>
+            <div class="form-group">
+                <label for="apiToken">API Token (in-memory only, cleared on disconnect)</label>
+                <input type="password" id="apiToken" class="token-input" placeholder="Enter your GitBot API token">
+            </div>
+            <button onclick="saveToken()">Connect</button>
+            <button class="secondary" onclick="clearToken()">Disconnect</button>
+            <div id="healthStatus"></div>
+        </section>
+
+        <section class="section">
+            <h2>Repositories (Allowlisted)</h2>
+            <button onclick="loadRepos()">Refresh</button>
+            <div id="reposList"></div>
+        </section>
+
+        <section class="section">
+            <h2>Create Task</h2>
+            <div class="form-group">
+                <label for="repoSelect">Repository</label>
+                <select id="repoSelect"></select>
+            </div>
+            <div class="form-group">
+                <label for="taskType">Task Type</label>
+                <select id="taskType">
+                    <option value="analyze">Analyze</option>
+                    <option value="bugfix">Bug Fix</option>
+                    <option value="feature">Feature</option>
+                    <option value="docs">Documentation</option>
+                    <option value="deps">Dependencies</option>
+                    <option value="tests">Tests</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="taskPrompt">Task Description</label>
+                <textarea id="taskPrompt" placeholder="Describe what you want GitBot to do..."></textarea>
+            </div>
+            <button onclick="createTask()">Create Task</button>
+            <div id="createTaskMsg"></div>
+        </section>
+
+        <section class="section">
+            <h2>Tasks</h2>
+            <button onclick="loadTasks()">Refresh</button>
+            <div id="tasksMsg"></div>
+            <div style="overflow-x: auto;">
+                <table id="tasksTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Repo</th>
+                            <th>Type</th>
+                            <th>Description</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="section">
+            <h2>Pending Approvals</h2>
+            <button onclick="loadApprovals()">Refresh</button>
+            <div id="approvalsMsg"></div>
+            <div style="overflow-x: auto;">
+                <table id="approvalsTable">
+                    <thead>
+                        <tr>
+                            <th>Approval ID</th>
+                            <th>Task ID</th>
+                            <th>Repo</th>
+                            <th>Action</th>
+                            <th>Diff Hash</th>
+                            <th>Expires</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="section hidden" id="taskDetailSection">
+            <h2>Task Details</h2>
+            <button class="secondary" onclick="closeTaskDetail()">Close</button>
+            <div id="taskDetail"></div>
+        </section>
+    </main>
+
+    <script>
+        const API_BASE = window.location.origin;
+        let token = '';
+
+        function saveToken() {
+            const input = document.getElementById('apiToken');
+            token = input.value.trim();
+            input.value = '';
+            checkHealth();
+            loadRepos();
+            loadTasks();
+            loadApprovals();
+        }
+
+        function clearToken() {
+            token = '';
+            document.getElementById('apiToken').value = '';
+            document.getElementById('healthStatus').textContent = '';
+            document.getElementById('reposList').textContent = '';
+            const rt = document.querySelector('#tasksTable tbody');
+            if (rt) rt.innerHTML = '';
+            const ra = document.querySelector('#approvalsTable tbody');
+            if (ra) ra.innerHTML = '';
+            const rs = document.getElementById('repoSelect');
+            if (rs) rs.innerHTML = '';
+        }
+
+        function safeText(text) {
+            const div = document.createElement('div');
+            div.textContent = text == null ? '' : String(text);
+            return div.innerHTML;
+        }
+
+        async function apiCall(path, options = {}) {
+            if (!token) throw new Error('No token set. Enter API token and click Connect.');
+            const headers = { 'Content-Type': 'application/json', ...options.headers };
+            headers['Authorization'] = `Bearer ${token}`;
+            const response = await fetch(API_BASE + path, { ...options, headers });
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.includes('application/json')) {
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data?.error?.message || JSON.stringify(data));
+                }
+                return data;
+            } else {
+                const text = await response.text();
+                if (!response.ok) throw new Error(text);
+                throw new Error('Unexpected response format');
+            }
+        }
+
+        async function checkHealth() {
+            try {
+                const data = await apiCall('/api/health');
+                const el = document.getElementById('healthStatus');
+                el.innerHTML = '';
+                const span = document.createElement('span');
+                span.style.color = '#10b981';
+                span.textContent = '✓ Healthy';
+                el.appendChild(span);
+                el.appendChild(document.createTextNode(' - Version: ' + data.version + ', Dry Run: ' + data.dry_run));
+            } catch (e) {
+                const el = document.getElementById('healthStatus');
+                el.innerHTML = '';
+                const span = document.createElement('span');
+                span.style.color = '#ef4444';
+                span.textContent = '✗ Error';
+                el.appendChild(span);
+                el.appendChild(document.createTextNode(' - ' + e.message));
+            }
+        }
+
+        async function loadRepos() {
+            try {
+                const data = await apiCall('/api/repos');
+                const select = document.getElementById('repoSelect');
+                select.innerHTML = '';
+                const list = document.getElementById('reposList');
+                list.innerHTML = '';
+                if (!data.repos || data.repos.length === 0) {
+                    const p = document.createElement('p');
+                    p.textContent = 'No allowlisted repositories. Add repositories via API.';
+                    list.appendChild(p);
+                    return;
+                }
+                data.repos.forEach(repo => {
+                    const option = document.createElement('option');
+                    option.value = repo.id;
+                    option.textContent = repo.slug + ' (' + repo.path + ')';
+                    select.appendChild(option);
+                    const item = document.createElement('div');
+                    item.textContent = repo.slug + ' - ' + repo.path;
+                    list.appendChild(item);
+                });
+            } catch (e) {
+                const list = document.getElementById('reposList');
+                list.innerHTML = '';
+                const div = document.createElement('div');
+                div.className = 'error';
+                div.textContent = e.message;
+                list.appendChild(div);
+            }
+        }
+
+        async function createTask() {
+            const msg = document.getElementById('createTaskMsg');
+            msg.innerHTML = '';
+            try {
+                const repoId = parseInt(document.getElementById('repoSelect').value);
+                const taskType = document.getElementById('taskType').value;
+                const prompt = document.getElementById('taskPrompt').value;
+                if (isNaN(repoId) || !prompt.trim()) {
+                    const div = document.createElement('div');
+                    div.className = 'error';
+                    div.textContent = 'Please select a repo and enter a task description';
+                    msg.appendChild(div);
+                    return;
+                }
+                const data = await apiCall('/api/tasks', {
+                    method: 'POST',
+                    body: JSON.stringify({ repo_id: repoId, task_type: taskType, prompt: prompt.trim() })
+                });
+                const div = document.createElement('div');
+                div.className = 'success';
+                div.textContent = 'Task created: ' + data.task.id;
+                msg.appendChild(div);
+                document.getElementById('taskPrompt').value = '';
+                loadTasks();
+            } catch (e) {
+                const div = document.createElement('div');
+                div.className = 'error';
+                div.textContent = e.message;
+                msg.appendChild(div);
+            }
+        }
+
+        async function loadTasks() {
+            const msg = document.getElementById('tasksMsg');
+            msg.innerHTML = '';
+            try {
+                const data = await apiCall('/api/tasks');
+                const tbody = document.querySelector('#tasksTable tbody');
+                tbody.innerHTML = '';
+                if (!data.tasks || data.tasks.length === 0) {
+                    const div = document.createElement('div');
+                    div.textContent = 'No tasks yet.';
+                    msg.appendChild(div);
+                    return;
+                }
+                data.tasks.forEach(task => {
+                    const row = tbody.insertRow();
+                    const idCell = row.insertCell();
+                    idCell.textContent = task.id ? task.id.substring(0, 12) + '...' : '';
+                    const repoCell = row.insertCell();
+                    repoCell.textContent = task.repo_id || '';
+                    const typeCell = row.insertCell();
+                    typeCell.textContent = task.task_type || '';
+                    const descCell = row.insertCell();
+                    descCell.textContent = (task.prompt || '').substring(0, 60);
+                    const statusCell = row.insertCell();
+                    const span = document.createElement('span');
+                    span.className = 'status ' + (task.state || '');
+                    span.textContent = task.state || '';
+                    statusCell.appendChild(span);
+                    const createdCell = row.insertCell();
+                    createdCell.textContent = task.created_at || '';
+                    const actionsCell = row.insertCell();
+                    const viewBtn = document.createElement('button');
+                    viewBtn.textContent = 'View';
+                    viewBtn.onclick = () => viewTask(task.id);
+                    actionsCell.appendChild(viewBtn);
+                    if (task.state === 'queued') {
+                        const runBtn = document.createElement('button');
+                        runBtn.textContent = 'Run';
+                        runBtn.onclick = () => runTask(task.id);
+                        actionsCell.appendChild(runBtn);
+                    }
+                });
+            } catch (e) {
+                const div = document.createElement('div');
+                div.className = 'error';
+                div.textContent = e.message;
+                msg.appendChild(div);
+            }
+        }
+
+        async function viewTask(taskId) {
+            try {
+                const data = await apiCall(`/api/tasks/${taskId}`);
+                const detail = document.getElementById('taskDetail');
+                detail.innerHTML = '';
+                const add = (label, value) => {
+                    const p = document.createElement('p');
+                    const b = document.createElement('strong');
+                    b.textContent = label + ': ';
+                    p.appendChild(b);
+                    p.appendChild(document.createTextNode(value == null ? 'N/A' : String(value)));
+                    detail.appendChild(p);
+                };
+                add('ID', data.task.id);
+                const p = document.createElement('p');
+                const b = document.createElement('strong');
+                b.textContent = 'State: ';
+                p.appendChild(b);
+                const s = document.createElement('span');
+                s.className = 'status ' + (data.task.state || '');
+                s.textContent = data.task.state || '';
+                p.appendChild(s);
+                detail.appendChild(p);
+                add('Prompt', data.task.prompt);
+                add('Branch', data.task.branch_name);
+                add('Diff Hash', data.task.diff_hash);
+                add('Error', data.task.error_message);
+                const h3 = document.createElement('h3');
+                h3.textContent = 'Events';
+                detail.appendChild(h3);
+                if (data.events && data.events.length > 0) {
+                    const ul = document.createElement('ul');
+                    data.events.forEach(e => {
+                        const li = document.createElement('li');
+                        li.textContent = (e.created_at || '') + ' - ' + (e.event_type || '') + ': ' + JSON.stringify(e.detail || {});
+                        ul.appendChild(li);
+                    });
+                    detail.appendChild(ul);
+                } else {
+                    const p2 = document.createElement('p');
+                    p2.textContent = 'No events.';
+                    detail.appendChild(p2);
+                }
+                document.getElementById('taskDetailSection').classList.remove('hidden');
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        }
+
+        function closeTaskDetail() {
+            document.getElementById('taskDetailSection').classList.add('hidden');
+        }
+
+        async function runTask(taskId) {
+            try {
+                await apiCall(`/api/tasks/${taskId}/run`, { method: 'POST' });
+                alert('Task started');
+                loadTasks();
+                loadApprovals();
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        }
+
+        async function loadApprovals() {
+            const msg = document.getElementById('approvalsMsg');
+            msg.innerHTML = '';
+            try {
+                const data = await apiCall('/api/tasks/approvals/pending');
+                const tbody = document.querySelector('#approvalsTable tbody');
+                tbody.innerHTML = '';
+                if (!data.approvals || data.approvals.length === 0) {
+                    const div = document.createElement('div');
+                    div.textContent = 'No pending approvals.';
+                    msg.appendChild(div);
+                    return;
+                }
+                data.approvals.forEach(appr => {
+                    const row = tbody.insertRow();
+                    const c1 = row.insertCell(); c1.textContent = (appr.id || '').substring(0, 16) + '...';
+                    const c2 = row.insertCell(); c2.textContent = (appr.task_id || '').substring(0, 12) + '...';
+                    const c3 = row.insertCell(); c3.textContent = appr.repo_id || '';
+                    const c4 = row.insertCell(); c4.textContent = appr.action || '';
+                    const c5 = row.insertCell(); c5.textContent = (appr.diff_hash || '').substring(0, 16) + '...';
+                    const c6 = row.insertCell(); c6.textContent = appr.expires_at || '';
+                    const c7 = row.insertCell();
+                    const ab = document.createElement('button');
+                    ab.className = 'success';
+                    ab.textContent = 'Approve';
+                    ab.onclick = () => approveTask(appr.id);
+                    const rb = document.createElement('button');
+                    rb.className = 'danger';
+                    rb.textContent = 'Reject';
+                    rb.onclick = () => rejectTask(appr.id);
+                    c7.appendChild(ab); c7.appendChild(rb);
+                });
+            } catch (e) {
+                const div = document.createElement('div');
+                div.className = 'error';
+                div.textContent = e.message;
+                msg.appendChild(div);
+            }
+        }
+
+        async function approveTask(approvalId) {
+            const diffHash = prompt('Enter the diff hash from task details to confirm approval (must match):');
+            if (!diffHash) return;
+            try {
+                await apiCall(`/api/tasks/approvals/${approvalId}/approve`, {
+                    method: 'POST',
+                    body: JSON.stringify({ diff_hash: diffHash.trim() })
+                });
+                alert('Approved');
+                loadApprovals();
+                loadTasks();
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        }
+
+        async function rejectTask(approvalId) {
+            if (!confirm('Reject this approval? This cannot be undone.')) return;
+            try {
+                await apiCall(`/api/tasks/approvals/${approvalId}/reject`, { method: 'POST' });
+                alert('Rejected');
+                loadApprovals();
+                loadTasks();
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        }
+
+        window.addEventListener('beforeunload', () => { token = ''; });
+    </script>
+</body>
+</html>
