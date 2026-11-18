@@ -46,6 +46,35 @@ model is verified working for this account:
 changes that. Health also keeps `dry_run: true`, `supervised_automation_enabled:
 false`, `allow_approved_local_commits: false`, scheduler disabled by default.
 
+**Authorized free-provider connection test through the GitBot host runner
+(2026-11-18, one attempt, $0 route, no repo data):**
+
+`opencode/inkling-2-small-free` via the GitBot `HostModelRunner` (bwrap
+sandbox, `HOME=/work/home`, no credentials mounted, `HTTPS_PROXY` → relay →
+CONNECT tunnel restricted to `opencode.ai:443`, strict 60 s timeout,
+prompt `Reply with exactly GITBOT_PROVIDER_OK`, no tools). Result after
+~3.2 s: `GatewayProviderError`, `provider_code=rate_limit`,
+`http_status=429`, code `ai_gateway_rate_limited` — i.e. the `opencode.ai`
+free federation has no quota for this account today either. No repository
+data was sent; nothing retried; no other model was attempted; no production
+configuration was changed; the production database was untouched.
+
+`openrouter/openrouter/free` appears in the installed OpenCode catalog but is
+not usable under this isolation design: the gateway tunnel allows only
+`opencode.ai`/`*.opencode.ai:443` and the host model runner carries no
+OpenRouter credential (deliberately). Using it would require extending the
+tunnel CONNECT allowlist to `openrouter.ai:443` **and** placing the stored
+OpenRouter key inside the host-runner sandbox — a security-boundary change
+that was not authorized. The stored OpenRouter credential remains only in the
+host-side OpenCode credential store, untouched.
+
+**Blocker (unchanged in kind):** the account's free-inference quota is
+exhausted/unavailable for both the opencode.ai federation (429 today) and, by
+the earlier evidence, OpenRouter's free tier (429, 2026-11-12). No free route
+is available; no paid call was made. A live `analyzed` task is impossible
+until the account has free quota again or the user authorizes a boundary
+change (tunnel allowlist + host-runner credential placement) in writing.
+
 **Defects found by the read-only audit and fixed in this pass** (all covered by
 new regression tests; full suite: **533 passed**):
 
