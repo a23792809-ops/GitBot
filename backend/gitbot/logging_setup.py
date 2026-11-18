@@ -11,6 +11,11 @@ from gitbot.security import RedactionFilter
 LOG_FORMAT = "%(asctime)s %(levelname)-8s %(name)s %(message)s"
 
 
+def _attach_redaction(handler: logging.Handler) -> None:
+    if not any(isinstance(item, RedactionFilter) for item in handler.filters):
+        handler.addFilter(RedactionFilter())
+
+
 def configure_logging(
     level: str = "INFO",
     *,
@@ -30,8 +35,12 @@ def configure_logging(
         formatter = logging.Formatter(LOG_FORMAT)
         stream = logging.StreamHandler()
         stream.setFormatter(formatter)
-        stream.addFilter(RedactionFilter())
         root.addHandler(stream)
+
+    # Existing handlers may have been installed by uvicorn or a test harness;
+    # they must be redaction-filtered too, not just the handler created above.
+    for handler in root.handlers:
+        _attach_redaction(handler)
 
     if log_file is not None:
         log_file = Path(log_file)
@@ -46,5 +55,6 @@ def configure_logging(
                 log_file, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8"
             )
             file_handler.setFormatter(logging.Formatter(LOG_FORMAT))
-            file_handler.addFilter(RedactionFilter())
             root.addHandler(file_handler)
+        for handler in root.handlers:
+            _attach_redaction(handler)

@@ -27,26 +27,58 @@ def _create_repo(db: Database) -> int:
         return int(cur.lastrowid)
 
 
+def _create_task(db: Database, task_id: str, repo_id: int) -> None:
+    from gitbot.timeutil import utc_now_iso
+
+    now = utc_now_iso()
+    with db.connect() as conn:
+        conn.execute(
+            "INSERT INTO tasks (id, repo_id, task_type, state, prompt, created_at, updated_at) "
+            "VALUES (?, ?, 'analyze', 'awaiting_review', 'review', ?, ?)",
+            (task_id, repo_id, now, now),
+        )
+
+
+def _approval_for(db: Database, task_id: str, repo_id: int, diff: str, **kwargs):
+    _create_task(db, task_id, repo_id)
+    store = ApprovalStore(db)
+    return store, store.create(
+        task_id,
+        repo_id,
+        ApprovalAction.COMMIT,
+        compute_diff_hash(diff),
+        ["git", "commit"],
+        **kwargs,
+    )
+
+
 def test_approval_create_consume(tmp_path: Path) -> None:
     db = Database(tmp_path / "test.db")
     db.migrate()
     repo_id = _create_repo(db)
-    store = ApprovalStore(db)
+    store, approval = _approval_for(db, "t1", repo_id, "diff --git a/x b/x\n")
     diff_hash = compute_diff_hash("diff --git a/x b/x\n")
-    approval = store.create("t1", repo_id, ApprovalAction.COMMIT, diff_hash, ["git", "commit"])
     consumed = store.consume(approval.id, task_id="t1", repo_id=repo_id, diff_hash=diff_hash)
     assert consumed.id == approval.id
     with pytest.raises(ApprovalInvalid):
         store.consume(approval.id, task_id="t1", repo_id=repo_id, diff_hash=diff_hash)
 
 
-def test_approval_mismatch(tmp_path: Path) -> None:
+def test_approval_requires_existing_task(tmp_path: Path) -> None:
     db = Database(tmp_path / "test.db")
     db.migrate()
     repo_id = _create_repo(db)
     store = ApprovalStore(db)
+    with pytest.raises(ApprovalInvalid, match="task not found"):
+        store.create("missing", repo_id, ApprovalAction.COMMIT, compute_diff_hash("diff"), [])
+
+
+def test_approval_mismatch(tmp_path: Path) -> None:
+    db = Database(tmp_path / "test.db")
+    db.migrate()
+    repo_id = _create_repo(db)
+    store, approval = _approval_for(db, "t1", repo_id, "diff")
     diff_hash = compute_diff_hash("diff")
-    approval = store.create("t1", repo_id, ApprovalAction.COMMIT, diff_hash, ["git", "commit"])
     with pytest.raises(ApprovalMismatch):
         store.consume(approval.id, task_id="t2", repo_id=repo_id, diff_hash=diff_hash)
     with pytest.raises(ApprovalMismatch):
@@ -57,11 +89,8 @@ def test_approval_expired(tmp_path: Path) -> None:
     db = Database(tmp_path / "test.db")
     db.migrate()
     repo_id = _create_repo(db)
-    store = ApprovalStore(db)
+    store, approval = _approval_for(db, "t1", repo_id, "diff", expires_minutes=0)
     diff_hash = compute_diff_hash("diff")
-    approval = store.create(
-        "t1", repo_id, ApprovalAction.COMMIT, diff_hash, ["git", "commit"], expires_minutes=0
-    )
     time.sleep(1)
     with pytest.raises((ApprovalExpired, ApprovalInvalid)):
         store.consume(approval.id, task_id="t1", repo_id=repo_id, diff_hash=diff_hash)

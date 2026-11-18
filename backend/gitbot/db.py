@@ -90,6 +90,25 @@ class Database:
         finally:
             connection.close()
 
+    @contextmanager
+    def transaction(self) -> Iterator[sqlite3.Connection]:
+        """Run several statements atomically with an immediate writer lock.
+
+        ``connect`` uses autocommit, which is right for single-statement reads
+        and writes. Multi-statement state changes (approve/reject/commit
+        bookkeeping) use this helper so a crash cannot leave a task and its
+        audit/approval rows disagreeing.
+        """
+        with self.connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            try:
+                yield connection
+            except BaseException:
+                connection.execute("ROLLBACK")
+                raise
+            else:
+                connection.execute("COMMIT")
+
     # -- migrations ------------------------------------------------------
     def applied_migrations(self) -> list[AppliedMigration]:
         with self.connect() as connection:
@@ -104,40 +123,78 @@ class Database:
             ]
 
     def migrate(self) -> list[str]:
-        """Apply pending migrations in order. Returns newly applied versions."""
+        """Apply pending migrations in order. Returns newly applied versions.
+
+        Foreign-key enforcement is disabled for the duration of the migration
+        run so a migration can rebuild a table that other tables reference
+        (SQLite cannot alter a CHECK constraint in place). Every statement set
+        is still verified with ``PRAGMA foreign_key_check`` before it commits,
+        and enforcement is restored even when a migration fails.
+        """
         files = self._migration_files()
         with self.connect() as connection:
-            connection.execute(
-                f"""
-                CREATE TABLE IF NOT EXISTS {MIGRATION_TABLE} (
-                    version    TEXT PRIMARY KEY,
-                    checksum   TEXT NOT NULL,
-                    applied_at TEXT NOT NULL
-                )
-                """
+            connection.execute("PRAGMA foreign_keys = OFF")
+            try:
+                if connection.execute("PRAGMA foreign_keys").fetchone()[0] != 0:
+                    raise MigrationError("cannot disable foreign keys for migration")
+                return self._migrate_with_foreign_keys_off(connection, files)
+            finally:
+                connection.execute("PRAGMA foreign_keys = ON")
+
+    def _migrate_with_foreign_keys_off(
+        self, connection: sqlite3.Connection, files: list[tuple[str, Path]]
+    ) -> list[str]:
+        connection.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS {MIGRATION_TABLE} (
+                version    TEXT PRIMARY KEY,
+                checksum   TEXT NOT NULL,
+                applied_at TEXT NOT NULL
             )
-            applied = {
-                row["version"]: row["checksum"]
-                for row in connection.execute(_SELECT_CHECKSUMS).fetchall()
-            }
+            """
+        )
+        applied = {
+            row["version"]: row["checksum"]
+            for row in connection.execute(_SELECT_CHECKSUMS).fetchall()
+        }
+        available_versions = {version for version, _path in files}
+        missing_files = sorted(set(applied) - available_versions)
+        if missing_files:
+            raise MigrationError(
+                "a migration recorded as applied has no schema file",
+                details={"versions": missing_files},
+            )
 
-            newly_applied: list[str] = []
-            for version, path in files:
-                script = path.read_text(encoding="utf-8")
-                checksum = hashlib.sha256(script.encode("utf-8")).hexdigest()
+        pending = [version for version, _path in files if version not in applied]
+        if applied and pending:
+            latest_applied = max(applied)
+            out_of_order = [version for version in pending if version < latest_applied]
+            if out_of_order:
+                raise MigrationError(
+                    "pending migrations would be applied out of order",
+                    details={
+                        "pending": out_of_order,
+                        "latest_applied": latest_applied,
+                    },
+                )
 
-                if version in applied:
-                    if applied[version] != checksum:
-                        raise MigrationError(
-                            f"migration {version} was modified after being applied",
-                            details={"version": version, "path": str(path)},
-                        )
-                    continue
+        newly_applied: list[str] = []
+        for version, path in files:
+            script = path.read_text(encoding="utf-8")
+            checksum = hashlib.sha256(script.encode("utf-8")).hexdigest()
 
-                self._apply(connection, version, script, checksum)
-                newly_applied.append(version)
+            if version in applied:
+                if applied[version] != checksum:
+                    raise MigrationError(
+                        f"migration {version} was modified after being applied",
+                        details={"version": version, "path": str(path)},
+                    )
+                continue
 
-            return newly_applied
+            self._apply(connection, version, script, checksum)
+            newly_applied.append(version)
+
+        return newly_applied
 
     def _apply(
         self, connection: sqlite3.Connection, version: str, script: str, checksum: str
@@ -147,6 +204,23 @@ class Database:
         try:
             for statement in statements:
                 connection.execute(statement)
+            violations = connection.execute("PRAGMA foreign_key_check").fetchall()
+            if violations:
+                connection.execute("ROLLBACK")
+                raise MigrationError(
+                    f"migration {version} left foreign key violations",
+                    details={
+                        "version": version,
+                        "violations": [
+                            {
+                                "table": row["table"],
+                                "rowid": row["rowid"],
+                                "parent": row["parent"],
+                            }
+                            for row in violations[:10]
+                        ],
+                    },
+                )
             connection.execute(_INSERT_MIGRATION, (version, checksum))
             connection.execute("COMMIT")
         except sqlite3.Error as exc:

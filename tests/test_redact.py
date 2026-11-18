@@ -17,6 +17,9 @@ GH_PAT = "github" + "_pat_" + ("A1b2C3" * 5)
 AWS_KEY = "AKIA" + "Q" * 16
 PEM_HEADER = "-----BEGIN " + "RSA PRIVATE KEY" + "-----"
 PEM_FOOTER = "-----END " + "RSA PRIVATE KEY" + "-----"
+OR_KEY = "sk" + "-or-v1-" + ("c3d4e5f6" * 3)
+OAI_KEY = "sk" + "-proj-" + ("A1b2C3d4" * 4)
+ANT_KEY = "sk" + "-ant-api03-" + ("Q7w8E9r0" * 3)
 
 
 def test_github_token_is_redacted() -> None:
@@ -56,6 +59,19 @@ def test_bearer_header_keeps_scheme_drops_credential() -> None:
 def test_generic_key_value_secret_is_redacted() -> None:
     result = redact_text("client_secret=super-secret-value-123")
     assert "super-secret-value-123" not in result
+
+
+def test_openai_style_provider_key_is_redacted() -> None:
+    for key in (OR_KEY, OAI_KEY, ANT_KEY):
+        result = redact_text(f"provider rejected {key} for auth")
+        assert key not in result
+        assert "[REDACTED:openai_style_key]" in result
+
+
+def test_openai_style_key_inside_error_sentence_is_redacted() -> None:
+    # A provider echo without a keyword in front of the key must still be caught.
+    result = redact_text(f"Invalid API key {OR_KEY} supplied")
+    assert OR_KEY not in result
 
 
 def test_ordinary_text_is_untouched() -> None:

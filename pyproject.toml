@@ -40,7 +40,12 @@ markers = [
 target-version = "py314"
 line-length = 100
 src = ["backend", "tests"]
-extend-exclude = [".venv", "node_modules", "frontend"]
+# ``chat.py`` is an untracked, user-authored scratch script at the repository
+# root.  It is not part of the GitBot package (it imports a third-party SDK that
+# is not a project dependency), so it is excluded from the lint/format surface
+# instead of being modified or deleted.  Everything under backend/ and tests/
+# remains fully covered by the official commands.
+extend-exclude = [".venv", "node_modules", "frontend", "chat.py"]
 
 [tool.ruff.lint]
 select = [

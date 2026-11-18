@@ -59,15 +59,11 @@ class ApprovalStore:
             "%Y-%m-%dT%H:%M:%SZ"
         )
         with self.db.connect() as conn:
-            # Ensure task exists for FK
-            cur = conn.execute("SELECT id FROM tasks WHERE id = ?", (task_id,))
-            if cur.fetchone() is None:
-                conn.execute(
-                    "INSERT INTO tasks ("
-                    "id, repo_id, task_type, state, prompt, created_at, updated_at"
-                    ") VALUES (?, ?, 'analyze', 'queued', '', ?, ?)",
-                    (task_id, repo_id, now, now),
-                )
+            row = conn.execute("SELECT repo_id FROM tasks WHERE id = ?", (task_id,)).fetchone()
+            if row is None:
+                raise ApprovalInvalid("task not found; refusing to create an orphan approval")
+            if int(row["repo_id"]) != int(repo_id):
+                raise ApprovalMismatch("approval repository does not match the task")
             conn.execute(
                 "INSERT INTO approvals ("
                 "id, task_id, repo_id, action, diff_hash, argv_json, expires_at, created_at, actor"
@@ -114,7 +110,30 @@ class ApprovalStore:
             created_at=row["created_at"],
         )
 
-    def consume(self, approval_id: str, *, task_id: str, repo_id: int, diff_hash: str) -> Approval:
+    def revoke(self, approval_id: str) -> bool:
+        """Invalidate an approval without consuming it for an action.
+
+        Used when a task leaves review (cancel/reject): a pending approval must
+        never outlive the diff it was bound to.
+        """
+        with self.db.connect() as conn:
+            cursor = conn.execute(
+                "UPDATE approvals SET used_at = COALESCE("
+                "used_at, strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) "
+                "WHERE id = ? AND used_at IS NULL",
+                (approval_id,),
+            )
+            return cursor.rowcount > 0
+
+    def consume(
+        self,
+        approval_id: str,
+        *,
+        task_id: str,
+        repo_id: int,
+        diff_hash: str,
+        action: ApprovalAction | None = None,
+    ) -> Approval:
         approval = self.get(approval_id)
         if approval.used_at is not None:
             raise ApprovalInvalid("approval already used")
@@ -128,12 +147,16 @@ class ApprovalStore:
             raise ApprovalExpired("approval expired")
         if approval.task_id != task_id or approval.repo_id != repo_id:
             raise ApprovalMismatch("approval does not match task/repo")
+        if action is not None and approval.action != action:
+            raise ApprovalMismatch("approval action does not match")
         if approval.diff_hash != diff_hash:
             raise ApprovalMismatch("diff hash mismatch")
         with self.db.connect() as conn:
-            conn.execute(
+            cursor = conn.execute(
                 "UPDATE approvals SET used_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') "
                 "WHERE id = ? AND used_at IS NULL",
                 (approval_id,),
             )
+            if cursor.rowcount != 1:
+                raise ApprovalInvalid("approval already used")
         return approval

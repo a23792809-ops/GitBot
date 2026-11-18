@@ -17,6 +17,7 @@ from gitbot.api.routes import git as git_routes
 from gitbot.api.routes import github as github_routes
 from gitbot.api.routes import health as health_routes
 from gitbot.api.routes import repos as repo_routes
+from gitbot.api.routes import schedules as schedules_routes
 from gitbot.api.routes import tasks as tasks_routes
 from gitbot.api.state import AppState, get_state
 from gitbot.audit import AuditLog
@@ -25,8 +26,11 @@ from gitbot.db import Database
 from gitbot.errors import GitBotError
 from gitbot.github.service import GithubService
 from gitbot.models import AuditOutcome
+from gitbot.opencode.gateway import GatewayConfig
 from gitbot.repos import RepoStore
 from gitbot.security import redact_text
+from gitbot.tasks.engine import recover_stale_tasks
+from gitbot.tasks.scheduler import Scheduler
 
 __all__ = ["AppState", "create_app", "get_state"]
 
@@ -42,28 +46,69 @@ def create_app(
     run_migrations: bool = False,
 ) -> FastAPI:
     audit_log = audit or AuditLog(database)
+    scheduler = Scheduler(
+        database,
+        audit_log,
+        dry_run=settings.dry_run,
+        supervised_automation_enabled=settings.supervised_automation_enabled,
+        allow_approved_local_commits=settings.allow_approved_local_commits,
+        home=settings.home,
+        interval_s=settings.scheduler_interval_s,
+        retry_delay_s=settings.retry_delay_s,
+        gateway=GatewayConfig(
+            enabled=settings.ai_gateway_enabled,
+            model=settings.ai_gateway_model,
+            timeout_s=settings.ai_gateway_timeout_s,
+            relay_port=settings.ai_gateway_relay_port,
+        ),
+    )
     state = AppState(
         settings=settings,
         database=database,
         audit=audit_log,
         github=github,
         repos=RepoStore(database),
+        scheduler=scheduler,
     )
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         if run_migrations:
             database.migrate()
+        try:
+            recovered = recover_stale_tasks(database)
+        except Exception:  # startup must report, not crash, on recovery failure
+            logger.exception("failed to recover stale running tasks")
+        else:
+            if recovered:
+                audit_log.record(
+                    event_type="app.recover_stale",
+                    action="recover_stale_tasks",
+                    actor="system",
+                    outcome=AuditOutcome.INFO,
+                    detail={"count": len(recovered), "task_ids": recovered},
+                )
+                logger.warning("recovered %d stale running task(s)", len(recovered))
         audit_log.record(
             event_type="app.start",
             action="start",
             actor="system",
             target=f"{settings.host}:{settings.port}",
             outcome=AuditOutcome.INFO,
-            detail={"version": __version__, "dry_run": settings.dry_run},
+            detail={
+                "version": __version__,
+                "dry_run": settings.dry_run,
+                "supervised_automation_enabled": settings.supervised_automation_enabled,
+                "allow_approved_local_commits": settings.allow_approved_local_commits,
+            },
         )
         logger.info("GitBot %s listening on %s:%s", __version__, settings.host, settings.port)
-        yield
+        if settings.scheduler_enabled:
+            scheduler.start()
+        try:
+            yield
+        finally:
+            scheduler.stop()
 
     app = FastAPI(
         title="GitBot",
@@ -80,6 +125,7 @@ def create_app(
     app.include_router(health_routes.router)
     app.include_router(github_routes.router)
     app.include_router(repo_routes.router)
+    app.include_router(schedules_routes.router)
     app.include_router(tasks_routes.router)
     app.include_router(git_routes.router)
     app.include_router(audit_routes.router)

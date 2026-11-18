@@ -27,12 +27,50 @@ def test_valid_repo_inside_allowed_root_is_accepted(tmp_path: Path) -> None:
     assert resolved == repo.resolve()
 
 
-def test_worktree_git_file_is_accepted(tmp_path: Path) -> None:
+def test_git_file_target_outside_allowed_roots_is_rejected(tmp_path: Path) -> None:
     repo = tmp_path / "worktree"
     repo.mkdir()
     (repo / ".git").write_text("gitdir: /somewhere/.git/worktrees/x\n", encoding="utf-8")
 
-    assert resolve_repo_path(repo, allowed_roots=[tmp_path]) == repo.resolve()
+    with pytest.raises(AllowlistError, match="git metadata target does not exist"):
+        resolve_repo_path(repo, allowed_roots=[tmp_path])
+
+
+def test_symlinked_git_metadata_is_rejected(tmp_path: Path) -> None:
+    main = _git_repo(tmp_path / "main")
+    repo = tmp_path / "linked"
+    repo.mkdir()
+    (repo / ".git").symlink_to(main / ".git")
+
+    with pytest.raises(AllowlistError, match="must not be a symlink"):
+        resolve_repo_path(repo, allowed_roots=[tmp_path])
+
+
+def test_worktree_with_git_metadata_inside_allowed_root_is_accepted(tmp_path: Path) -> None:
+    main = _git_repo(tmp_path / "main")
+    subprocess.run(
+        ["git", "-C", str(main), "config", "user.email", "test@example.invalid"],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(main), "config", "user.name", "GitBot Test"],
+        check=True,
+        capture_output=True,
+    )
+    (main / "file.txt").write_text("x\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(main), "add", "file.txt"], check=True, capture_output=True)
+    subprocess.run(
+        ["git", "-C", str(main), "commit", "-q", "-m", "init"], check=True, capture_output=True
+    )
+    worktree = tmp_path / "worktree"
+    subprocess.run(
+        ["git", "-C", str(main), "worktree", "add", "-q", str(worktree)],
+        check=True,
+        capture_output=True,
+    )
+
+    assert resolve_repo_path(worktree, allowed_roots=[tmp_path]) == worktree.resolve()
 
 
 def test_non_git_directory_is_rejected(tmp_path: Path) -> None:
@@ -111,3 +149,38 @@ def test_policy_error_carries_stable_code(tmp_path: Path) -> None:
         resolve_repo_path(plain, allowed_roots=[tmp_path])
     assert excinfo.value.code == "path_not_allowed"
     assert excinfo.value.http_status == 403
+
+
+def test_repository_filter_attributes_are_rejected(tmp_path: Path) -> None:
+    repo = _git_repo(tmp_path / "filtered")
+    (repo / ".gitattributes").write_text("*.txt filter=evil\n", encoding="utf-8")
+    (repo / "notes.txt").write_text("content\n", encoding="utf-8")
+
+    with pytest.raises(AllowlistError, match="filter driver"):
+        resolve_repo_path(repo, allowed_roots=[tmp_path])
+
+
+def test_repository_attributes_without_filter_are_accepted(tmp_path: Path) -> None:
+    repo = _git_repo(tmp_path / "textual")
+    (repo / ".gitattributes").write_text("*.txt text\n", encoding="utf-8")
+    (repo / "notes.txt").write_text("content\n", encoding="utf-8")
+
+    assert resolve_repo_path(repo, allowed_roots=[tmp_path]) == repo.resolve()
+
+
+def test_gitattributes_filter_without_a_matching_file_is_rejected(tmp_path: Path) -> None:
+    repo = _git_repo(tmp_path / "future-filter")
+    (repo / ".gitattributes").write_text("*.future filter=evil\n", encoding="utf-8")
+
+    with pytest.raises(AllowlistError, match="filter driver"):
+        resolve_repo_path(repo, allowed_roots=[tmp_path])
+
+
+def test_git_info_attributes_filter_is_rejected(tmp_path: Path) -> None:
+    repo = _git_repo(tmp_path / "info-filter")
+    info = repo / ".git" / "info" / "attributes"
+    info.parent.mkdir(parents=True, exist_ok=True)
+    info.write_text("* filter=evil\n", encoding="utf-8")
+
+    with pytest.raises(AllowlistError, match="filter driver"):
+        resolve_repo_path(repo, allowed_roots=[tmp_path])

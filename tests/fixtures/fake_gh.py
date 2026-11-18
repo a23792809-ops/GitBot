@@ -105,6 +105,51 @@ def main(argv: list[str]) -> int:
         if path == "rate_limit":
             sys.stdout.write(json.dumps(RATE_LIMIT))
             return 0
+        if path == "graphql":
+            sys.stdout.write(
+                json.dumps(
+                    {
+                        "data": {
+                            "user": {
+                                "login": "fake-user",
+                                "contributionsCollection": {
+                                    "totalCommitContributions": 7,
+                                    "totalIssueContributions": 2,
+                                    "totalPullRequestContributions": 3,
+                                    "totalPullRequestReviewContributions": 1,
+                                    "restrictedContributionsCount": 0,
+                                    "contributionCalendar": {
+                                        "totalContributions": 13,
+                                        "weeks": [
+                                            {
+                                                "contributionDays": [
+                                                    {
+                                                        "date": "2026-10-01",
+                                                        "contributionCount": 5,
+                                                    },
+                                                    {
+                                                        "date": "2026-10-02",
+                                                        "contributionCount": 0,
+                                                    },
+                                                ]
+                                            },
+                                            {
+                                                "contributionDays": [
+                                                    {
+                                                        "date": "2026-10-03",
+                                                        "contributionCount": 8,
+                                                    }
+                                                ]
+                                            },
+                                        ],
+                                    },
+                                },
+                            }
+                        }
+                    }
+                )
+            )
+            return 0
         return fail(f"unknown api path {path!r}", 4)
 
     if args[:2] == ["repo", "list"]:

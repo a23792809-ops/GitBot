@@ -45,6 +45,15 @@ _RULES: tuple[tuple[str, re.Pattern[str], str], ...] = (
         REDACTED.format(kind="private_key"),
     ),
     (
+        "openai_style_key",
+        # Covers sk-..., sk-proj-..., sk-or-v1-..., sk-ant-api03-... and
+        # similar shapes used by OpenAI, Anthropic, OpenRouter and other
+        # providers.  The body must contain at least one dash/underscore or
+        # be at least 20 chars so short words like "sk-clean" are untouched.
+        re.compile(r"\bsk-(?:[A-Za-z0-9_-]*[-_])?[A-Za-z0-9_-]{16,}\b"),
+        REDACTED.format(kind="openai_style_key"),
+    ),
+    (
         "bearer",
         re.compile(r"(?i)\b(authorization\s*:\s*bearer\s+)[A-Za-z0-9._\-]{12,}"),
         r"\1" + REDACTED.format(kind="bearer"),
@@ -102,11 +111,24 @@ def redact_value(value: Any) -> Any:
 class RedactionFilter(logging.Filter):
     """Logging filter that scrubs credential shapes from messages and args.
 
-    Args keep their container type so ``%``-formatting keeps working; this is
-    what allows uvicorn/fastapi logs to be routed through our handlers safely.
+    The fully formatted record is redacted first, so a credential passed only
+    through ``%s`` arguments (for example
+    ``logger.info("Authorization: Bearer %s", token)``) is still removed.  Args
+    keep their container type for the fallback path so ``%``-formatting keeps
+    working; this is what allows uvicorn/fastapi logs to be routed through our
+    handlers safely.
     """
 
     def filter(self, record: logging.LogRecord) -> bool:
+        try:
+            rendered = record.getMessage()
+        except Exception:  # malformed format args must never break logging
+            rendered = None
+        if rendered is not None:
+            redacted = redact_text(rendered)
+            if redacted != rendered:
+                record.msg = redacted
+                record.args = ()
         if isinstance(record.msg, str):
             record.msg = redact_text(record.msg)
         if record.args:

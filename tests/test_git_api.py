@@ -18,6 +18,7 @@ from gitbot.db import Database
 from gitbot.github.client import GhClient
 from gitbot.github.service import GithubService
 from gitbot.repos import RepoStore
+from gitbot.security.tokens import ensure_token
 
 
 def _git(path: Path, *args: str) -> str:
@@ -38,7 +39,9 @@ def _init_repo(path: Path) -> Path:
 
 
 @contextmanager
-def build(settings: Settings, fake_gh: Path) -> Iterator[tuple[TestClient, Database]]:
+def build(
+    settings: Settings, fake_gh: Path, *, authenticated: bool = True
+) -> Iterator[tuple[TestClient, Database]]:
     database = Database(settings.db_path)
     database.migrate()
     audit = AuditLog(database)
@@ -49,6 +52,10 @@ def build(settings: Settings, fake_gh: Path) -> Iterator[tuple[TestClient, Datab
         audit=audit,
     )
     with TestClient(app, raise_server_exceptions=False) as client:
+        if authenticated:
+            # Every git read endpoint is token-gated; make the default explicit.
+            token = ensure_token(settings.token_file)
+            client.headers.update({"Authorization": f"Bearer {token}"})
         yield client, database
 
 
@@ -67,6 +74,29 @@ def _seed(settings: Settings, repo_path: Path) -> int:
     database.migrate()
     repo = RepoStore(database).add(path=str(repo_path.resolve()), slug="local/sample")
     return repo.id
+
+
+@pytest.mark.parametrize(
+    ("suffix", "params"),
+    [
+        ("/git/status", None),
+        ("/git/diff", None),
+        ("/git/preflight", {"task_id": "x"}),
+    ],
+)
+def test_git_reads_require_the_bearer_token(
+    settings: Settings,
+    fake_gh: Path,
+    repo_path: Path,
+    suffix: str,
+    params: dict[str, str] | None,
+) -> None:
+    repo_id = _seed(settings, repo_path)
+    with build(settings, fake_gh, authenticated=False) as (client, _db):
+        response = client.get(f"/api/repos/{repo_id}{suffix}", params=params)
+
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "unauthorized"
 
 
 def test_git_status_endpoint(settings: Settings, fake_gh: Path, repo_path: Path) -> None:
@@ -95,6 +125,23 @@ def test_git_diff_endpoint_reflects_working_tree(
     assert diff["files"] == ["app.py"]
     assert "print('changed')" in diff["patch"]
     assert diff["truncated"] is False
+
+
+def test_git_diff_rejects_option_like_base_without_writing(
+    settings: Settings, fake_gh: Path, repo_path: Path
+) -> None:
+    repo_id = _seed(settings, repo_path)
+    target = settings.home / "must-not-be-written.txt"
+    target.write_text("untouched", encoding="utf-8")
+
+    with build(settings, fake_gh) as (client, _db):
+        response = client.get(
+            f"/api/repos/{repo_id}/git/diff",
+            params={"base": f"--output={target}"},
+        )
+
+    assert response.status_code == 422
+    assert target.read_text(encoding="utf-8") == "untouched"
 
 
 def test_git_preflight_endpoint(settings: Settings, fake_gh: Path, repo_path: Path) -> None:

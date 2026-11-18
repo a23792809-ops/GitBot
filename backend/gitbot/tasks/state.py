@@ -1,6 +1,9 @@
 """Task state machine with validated transitions.
 
 States: queued → running → awaiting_review → approved → committed/failed/cancelled/expired
+Read-only analysis and explanation end at the terminal ``analyzed`` /
+``explained`` states and never reach ``awaiting_review``: there is nothing to
+approve or commit.
 Also allows failed/cancelled/expired from running/awaiting_review as appropriate.
 """
 
@@ -24,6 +27,8 @@ ALLOWED: dict[TaskState, set[TaskState]] = {
     TaskState.QUEUED: {TaskState.RUNNING, TaskState.CANCELLED, TaskState.FAILED},
     TaskState.RUNNING: {
         TaskState.AWAITING_REVIEW,
+        TaskState.ANALYZED,
+        TaskState.EXPLAINED,
         TaskState.FAILED,
         TaskState.CANCELLED,
         TaskState.EXPIRED,
@@ -36,6 +41,8 @@ ALLOWED: dict[TaskState, set[TaskState]] = {
     },
     TaskState.APPROVED: {TaskState.COMMITTED, TaskState.FAILED, TaskState.CANCELLED},
     TaskState.COMMITTED: set(),  # terminal
+    TaskState.ANALYZED: set(),  # terminal; no commit is possible
+    TaskState.EXPLAINED: set(),  # terminal; no commit is possible
     TaskState.FAILED: set(),  # terminal
     TaskState.CANCELLED: set(),  # terminal
     TaskState.EXPIRED: set(),  # terminal

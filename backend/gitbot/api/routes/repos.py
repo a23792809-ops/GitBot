@@ -1,4 +1,9 @@
-"""Repository allowlist. Reads are open on loopback; writes require the API token."""
+"""Repository allowlist. Every endpoint, including reads, requires the API token.
+
+Repository rows contain absolute host paths, so listing them is a data-bearing
+read. The dashboard sends its bearer token for these reads too; the server stays
+bound to loopback regardless.
+"""
 
 from __future__ import annotations
 
@@ -18,7 +23,7 @@ router = APIRouter(prefix="/api/repos", tags=["repositories"])
 WRITE_DEPENDENCIES = [Depends(require_token)]
 
 
-@router.get("")
+@router.get("", dependencies=[Depends(require_token)])
 def list_repos(state: StateDep) -> dict[str, Any]:
     repos = state.repos.list()
     return {
@@ -53,6 +58,8 @@ def add_repo(payload: RepoCreate, state: StateDep) -> dict[str, Any]:
         default_branch=payload.default_branch,
         allow_commit=payload.allow_commit,
         allow_push=payload.allow_push,
+        allowed_task_types=payload.allowed_task_types,
+        test_command=payload.test_command,
     )
     state.audit.record(
         event_type="repo.allowlist",
@@ -65,6 +72,8 @@ def add_repo(payload: RepoCreate, state: StateDep) -> dict[str, Any]:
             "path": repo.path,
             "allow_commit": repo.allow_commit,
             "allow_push": repo.allow_push,
+            "allowed_task_types": list(repo.allowed_task_types),
+            "test_command_configured": repo.test_command is not None,
         },
     )
     return {"repo": repo.to_dict()}
@@ -76,8 +85,17 @@ def update_repo(repo_id: int, payload: RepoUpdate, state: StateDep) -> dict[str,
     if existing is None:
         raise NotFoundError("repository is not allowlisted", details={"id": repo_id})
 
+    update_fields = {
+        "allow_commit": payload.allow_commit,
+        "allow_push": payload.allow_push,
+        "allowed_task_types": payload.allowed_task_types,
+    }
+    clear_test_command = "test_command" in payload.model_fields_set and payload.test_command is None
     updated = state.repos.update(
-        repo_id, allow_commit=payload.allow_commit, allow_push=payload.allow_push
+        repo_id,
+        **update_fields,
+        test_command=payload.test_command,
+        clear_test_command=clear_test_command,
     )
     if updated is None:  # pragma: no cover - row existed above
         raise NotFoundError("repository is not allowlisted", details={"id": repo_id})
@@ -92,6 +110,8 @@ def update_repo(repo_id: int, payload: RepoUpdate, state: StateDep) -> dict[str,
             "repo_id": updated.id,
             "allow_commit": updated.allow_commit,
             "allow_push": updated.allow_push,
+            "allowed_task_types": list(updated.allowed_task_types),
+            "test_command_configured": updated.test_command is not None,
         },
     )
     return {"repo": updated.to_dict()}
@@ -113,3 +133,16 @@ def remove_repo(repo_id: int, state: StateDep) -> Response:
         detail={"repo_id": existing.id, "path": existing.path},
     )
     return Response(status_code=204)
+
+
+@router.get("/{repo_id}/schedules", dependencies=[Depends(require_token)])
+def list_repo_schedules(repo_id: int, state: StateDep) -> dict[str, Any]:
+    existing = state.repos.get(repo_id)
+    if existing is None:
+        raise NotFoundError("repository is not allowlisted", details={"id": repo_id})
+    schedules = state.scheduler.schedules.list(repo_id=repo_id)
+    return {
+        "repo_id": repo_id,
+        "count": len(schedules),
+        "schedules": [schedule.to_dict() for schedule in schedules],
+    }

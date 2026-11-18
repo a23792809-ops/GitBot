@@ -19,7 +19,13 @@ from dataclasses import dataclass
 from typing import Any
 
 from gitbot.errors import GhNotAuthenticated, UpstreamError, UpstreamTimeout
-from gitbot.models import GithubAccount, GithubRepo, RateLimit
+from gitbot.models import (
+    ContributionDay,
+    ContributionSummary,
+    GithubAccount,
+    GithubRepo,
+    RateLimit,
+)
 from gitbot.security import redact_text
 
 TOKEN_ENV_VARS = frozenset(
@@ -190,6 +196,102 @@ class GhClient:
             remaining=int(rate.get("remaining", 0)),
             reset_at=int(rate.get("reset", 0)),
             used=int(rate.get("used", 0)),
+        )
+
+    def graphql(self, query: str, variables: Mapping[str, str]) -> Any:
+        """Run one read-only GraphQL query through ``gh api graphql``."""
+        args = ["api", "graphql", "-f", f"query={query}"]
+        for key, value in variables.items():
+            args.extend(["-f", f"{key}={value}"])
+        result = self.run(args)
+        if not result.ok:
+            self._raise_for(result)
+        try:
+            payload = json.loads(result.stdout)
+        except json.JSONDecodeError as exc:
+            raise UpstreamError("gh api graphql returned invalid JSON") from exc
+        if isinstance(payload, dict) and payload.get("errors"):
+            messages = [
+                str(item.get("message", "graphql error"))
+                for item in payload["errors"]
+                if isinstance(item, dict)
+            ]
+            raise UpstreamError(
+                "GitHub GraphQL query failed",
+                details={"errors": messages[:5]},
+            )
+        return payload
+
+    def contributions(self, login: str, from_date: str, to_date: str) -> ContributionSummary:
+        """Read the contribution calendar and breakdown for one user.
+
+        This is a read-only query. It deliberately does not create commits or
+        otherwise attempt to influence contribution activity.
+        """
+        query = (
+            "query($login:String!,$from:DateTime!,$to:DateTime!){"
+            " user(login:$login){"
+            "  contributionsCollection(from:$from,to:$to){"
+            "   totalCommitContributions totalIssueContributions"
+            "   totalPullRequestContributions totalPullRequestReviewContributions"
+            "   restrictedContributionsCount"
+            "   contributionCalendar{ totalContributions weeks{"
+            "    contributionDays{ date contributionCount }"
+            "   } }"
+            "  }"
+            " }"
+            "}"
+        )
+        payload = self.graphql(
+            query,
+            {
+                "login": login,
+                "from": f"{from_date}T00:00:00Z",
+                "to": f"{to_date}T23:59:59Z",
+            },
+        )
+        data = payload.get("data") if isinstance(payload, dict) else None
+        user = data.get("user") if isinstance(data, dict) else None
+        if not isinstance(user, dict):
+            raise UpstreamError(
+                "GitHub user was not found or contributions are not visible",
+                details={"login": login},
+            )
+        collection = user.get("contributionsCollection") or {}
+        calendar = collection.get("contributionCalendar") or {}
+        days: list[ContributionDay] = []
+        weeks = calendar.get("weeks") or []
+        if isinstance(weeks, list):
+            for week in weeks:
+                if not isinstance(week, dict):
+                    continue
+                for day in week.get("contributionDays") or []:
+                    if not isinstance(day, dict):
+                        continue
+                    date = str(day.get("date", ""))
+                    if not date:
+                        continue
+                    days.append(
+                        ContributionDay(
+                            date=date,
+                            count=int(day.get("contributionCount", 0) or 0),
+                        )
+                    )
+        days.sort(key=lambda item: item.date)
+        return ContributionSummary(
+            login=str(user.get("login", login)),
+            from_date=from_date,
+            to_date=to_date,
+            total=int(
+                calendar.get("totalContributions", collection.get("totalCommitContributions", 0))
+                or 0
+            ),
+            days=tuple(days),
+            commits=int(collection.get("totalCommitContributions", 0) or 0),
+            issues=int(collection.get("totalIssueContributions", 0) or 0),
+            pull_requests=int(collection.get("totalPullRequestContributions", 0) or 0),
+            reviews=int(collection.get("totalPullRequestReviewContributions", 0) or 0),
+            restricted=int(collection.get("restrictedContributionsCount", 0) or 0),
         )
 
 

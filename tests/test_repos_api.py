@@ -103,8 +103,9 @@ def test_add_appears_in_the_read_endpoint(
     settings: Settings, fake_gh: Path, repo_path: Path
 ) -> None:
     with api(settings, fake_gh) as (client, _db, _audit, token):
-        client.post("/api/repos", json={"path": str(repo_path)}, headers=_auth(token or ""))
-        listing = client.get("/api/repos")
+        headers = _auth(token or "")
+        client.post("/api/repos", json={"path": str(repo_path)}, headers=headers)
+        listing = client.get("/api/repos", headers=headers)
 
     assert listing.status_code == 200
     assert listing.json()["count"] == 1
@@ -164,6 +165,116 @@ def test_update_toggles_permissions(settings: Settings, fake_gh: Path, repo_path
     assert [entry.action for entry in entries] == ["update", "add"]
 
 
+def test_repo_task_types_and_test_command_round_trip(
+    settings: Settings, fake_gh: Path, repo_path: Path
+) -> None:
+    with api(settings, fake_gh) as (client, _db, audit, token):
+        headers = _auth(token or "")
+        created = client.post(
+            "/api/repos",
+            json={
+                "path": str(repo_path),
+                "allowed_task_types": ["explain", "docs"],
+                "test_command": "python3 -m pytest -q",
+            },
+            headers=headers,
+        )
+        assert created.status_code == 201, created.json()
+        repo = created.json()["repo"]
+        assert repo["allowed_task_types"] == ["explain", "docs"]
+        assert repo["test_command"] == "python3 -m pytest -q"
+
+        repo_id = repo["id"]
+        updated = client.patch(
+            f"/api/repos/{repo_id}",
+            json={"allowed_task_types": ["analyze"], "test_command": None},
+            headers=headers,
+        )
+        assert updated.status_code == 200
+        assert updated.json()["repo"]["allowed_task_types"] == ["analyze"]
+        assert updated.json()["repo"]["test_command"] is None
+        entries = audit.list_entries(event_type="repo.allowlist")
+        assert entries[0].detail["test_command_configured"] is False
+
+        empty = client.patch(
+            f"/api/repos/{repo_id}",
+            json={"allowed_task_types": []},
+            headers=headers,
+        )
+        assert empty.status_code == 422
+
+
+def test_test_command_rejects_multiline_input(
+    settings: Settings, fake_gh: Path, repo_path: Path
+) -> None:
+    with api(settings, fake_gh) as (client, _db, _audit, token):
+        response = client.post(
+            "/api/repos",
+            json={"path": str(repo_path), "test_command": "pytest\nrm -rf /"},
+            headers=_auth(token or ""),
+        )
+    assert response.status_code == 422
+
+
+def test_gitbot_source_tree_cannot_be_allowlisted(settings: Settings, fake_gh: Path) -> None:
+    gitbot_root = Path(__file__).resolve().parents[1]
+
+    with api(settings, fake_gh) as (client, _db, audit, token):
+        response = client.post(
+            "/api/repos", json={"path": str(gitbot_root)}, headers=_auth(token or "")
+        )
+        entries = audit.list_entries(event_type="repo.allowlist")
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "path_not_allowed"
+    assert "own source tree" in response.json()["error"]["message"]
+    assert entries[0].outcome == "denied"
+
+
+def test_push_cannot_be_enabled(settings: Settings, fake_gh: Path, repo_path: Path) -> None:
+    second = _git_repo(settings.home / "projects" / "second")
+    with api(settings, fake_gh) as (client, _db, _audit, token):
+        headers = _auth(token or "")
+        created = client.post(
+            "/api/repos",
+            json={"path": str(second), "allow_push": True},
+            headers=headers,
+        )
+        repo_id = client.post("/api/repos", json={"path": str(repo_path)}, headers=headers).json()[
+            "repo"
+        ]["id"]
+        patched = client.patch(f"/api/repos/{repo_id}", json={"allow_push": True}, headers=headers)
+
+    assert created.status_code == 422
+    assert patched.status_code == 422
+    assert "not implemented" in patched.json()["error"]["details"]["errors"][0]["msg"]
+
+
+def test_delete_with_task_history_is_refused(
+    settings: Settings, fake_gh: Path, repo_path: Path
+) -> None:
+    """Task/audit history must survive removal from the allowlist."""
+    with api(settings, fake_gh) as (client, _db, _audit, token):
+        headers = _auth(token or "")
+        repo_id = client.post("/api/repos", json={"path": str(repo_path)}, headers=headers).json()[
+            "repo"
+        ]["id"]
+        task = client.post(
+            "/api/tasks",
+            json={"repo_id": repo_id, "prompt": "keep history"},
+            headers=headers,
+        )
+        assert task.status_code == 200
+
+        response = client.delete(f"/api/repos/{repo_id}", headers=headers)
+        listing = client.get("/api/repos", headers=headers)
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "conflict"
+    assert "task history" in response.json()["error"]["message"]
+    assert listing.json()["count"] == 1
+
+
 def test_delete_removes_repo(settings: Settings, fake_gh: Path, repo_path: Path) -> None:
     with api(settings, fake_gh) as (client, _db, audit, token):
         headers = _auth(token or "")
@@ -172,7 +283,7 @@ def test_delete_removes_repo(settings: Settings, fake_gh: Path, repo_path: Path)
         ]["id"]
 
         deleted = client.delete(f"/api/repos/{repo_id}", headers=headers)
-        listing = client.get("/api/repos")
+        listing = client.get("/api/repos", headers=headers)
         entries = audit.list_entries(event_type="repo.allowlist")
 
     assert deleted.status_code == 204

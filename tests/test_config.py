@@ -116,6 +116,25 @@ def test_settings_is_immutable(tmp_path: Path) -> None:
         settings.port = 1234  # type: ignore[misc]
 
 
+def test_default_gateway_model_is_a_provider_model_reference(tmp_path: Path) -> None:
+    from gitbot.opencode.gateway import DEFAULT_GATEWAY_MODEL
+
+    settings = load_settings(env=_env(tmp_path))
+    assert settings.ai_gateway_model == DEFAULT_GATEWAY_MODEL
+    assert "/" in settings.ai_gateway_model
+
+
+@pytest.mark.parametrize("model", ["inkling-2-small-free", "opencode/", "/model", "a b/c"])
+def test_malformed_gateway_model_is_rejected(tmp_path: Path, model: str) -> None:
+    with pytest.raises(ConfigError, match="provider/model"):
+        load_settings(env=_env(tmp_path, GITBOT_AI_GATEWAY_MODEL=model))
+
+
+def test_configured_gateway_model_is_preserved(tmp_path: Path) -> None:
+    settings = load_settings(env=_env(tmp_path, GITBOT_AI_GATEWAY_MODEL="opencode/beam-free"))
+    assert settings.ai_gateway_model == "opencode/beam-free"
+
+
 def test_defaults_object_has_no_credentials() -> None:
     settings = Settings()
     assert not hasattr(settings, "token")

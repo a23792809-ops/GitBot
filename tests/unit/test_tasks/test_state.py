@@ -31,3 +31,20 @@ def test_cancel_from_running() -> None:
     sm = TaskStateMachine()
     sm.transition(TaskState.RUNNING, TaskState.CANCELLED)
     sm.transition(TaskState.QUEUED, TaskState.CANCELLED)
+
+
+def test_analysis_is_terminal_and_cannot_be_approved_or_committed() -> None:
+    sm = TaskStateMachine()
+    sm.transition(TaskState.QUEUED, TaskState.RUNNING)
+    sm.transition(TaskState.RUNNING, TaskState.ANALYZED)
+    for target in (
+        TaskState.AWAITING_REVIEW,
+        TaskState.APPROVED,
+        TaskState.COMMITTED,
+        TaskState.RUNNING,
+        TaskState.CANCELLED,
+    ):
+        with pytest.raises(InvalidStateTransition):
+            sm.transition(TaskState.ANALYZED, target)
+    with pytest.raises(InvalidStateTransition):
+        sm.transition(TaskState.QUEUED, TaskState.ANALYZED)

@@ -5,112 +5,416 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GitBot Dashboard</title>
     <style>
+        :root {
+            --bg: #0f172a;
+            --panel: #1e293b;
+            --panel-2: #172033;
+            --border: #334155;
+            --text: #e2e8f0;
+            --muted: #94a3b8;
+            --accent: #3b82f6;
+            --accent-2: #2563eb;
+            --ok: #10b981;
+            --warn: #f59e0b;
+            --danger: #ef4444;
+            --review: #8b5cf6;
+        }
         * { box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; margin: 0; background: #0f172a; color: #e2e8f0; }
-        header { background: #1e293b; padding: 1rem 2rem; border-bottom: 1px solid #334155; }
-        header h1 { margin: 0; font-size: 1.5rem; }
-        .warning { background: #451a03; color: #fdba74; padding: 0.75rem 2rem; border-bottom: 1px solid #9a3412; }
-        main { max-width: 1200px; margin: 0 auto; padding: 2rem; }
-        .section { background: #1e293b; border-radius: 8px; padding: 1.5rem; margin-bottom: 2rem; border: 1px solid #334155; }
-        .section h2 { margin-top: 0; color: #f1f5f9; }
-        button { background: #3b82f6; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; margin-right: 0.5rem; margin-bottom: 0.25rem; }
-        button:hover { background: #2563eb; }
-        button.danger { background: #ef4444; }
-        button.danger:hover { background: #dc2626; }
-        button.success { background: #10b981; }
-        button.success:hover { background: #059669; }
+        html, body { height: 100%; }
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.45;
+        }
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+            background: var(--panel);
+            padding: 0.9rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        header h1 { margin: 0; font-size: 1.35rem; letter-spacing: 0.01em; }
+        .header-meta { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+        main { max-width: 1240px; margin: 0 auto; padding: 1.5rem; }
+        .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem; }
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 1.25rem;
+            margin-bottom: 1.25rem;
+            min-width: 0;
+        }
+        .card h2 { margin: 0 0 0.35rem; font-size: 1.1rem; color: #f1f5f9; }
+        .card .hint { margin: 0 0 1rem; color: var(--muted); font-size: 0.85rem; }
+        .row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+        .row.end { justify-content: flex-end; }
+        .spread { display: flex; justify-content: space-between; gap: 0.75rem; align-items: flex-start; flex-wrap: wrap; }
+        button {
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            padding: 0.45rem 0.85rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-family: inherit;
+        }
+        button:hover:not(:disabled) { background: var(--accent-2); }
+        button:disabled { opacity: 0.45; cursor: not-allowed; }
         button.secondary { background: #475569; }
-        button.secondary:hover { background: #334155; }
-        input, select, textarea { background: #0f172a; color: #e2e8f0; border: 1px solid #475569; padding: 0.5rem; border-radius: 4px; width: 100%; font-family: inherit; font-size: 0.9rem; }
-        textarea { min-height: 80px; resize: vertical; }
-        .form-group { margin-bottom: 1rem; }
-        label { display: block; margin-bottom: 0.5rem; color: #cbd5e1; }
-        table { width: 100%; border-collapse: collapse; overflow-x: auto; display: block; }
-        thead, tbody { display: table; width: 100%; table-layout: fixed; }
-        th, td { padding: 0.75rem; text-align: left; border-bottom: 1px solid #334155; word-break: break-word; }
-        th { background: #0f172a; color: #94a3b8; }
-        .status { padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.875rem; display: inline-block; }
+        button.secondary:hover:not(:disabled) { background: #3f4a5c; }
+        button.success { background: var(--ok); }
+        button.success:hover:not(:disabled) { background: #059669; }
+        button.danger { background: var(--danger); }
+        button.danger:hover:not(:disabled) { background: #dc2626; }
+        button.small { padding: 0.25rem 0.55rem; font-size: 0.8rem; }
+        input, select, textarea {
+            background: var(--bg);
+            color: var(--text);
+            border: 1px solid #475569;
+            padding: 0.5rem 0.6rem;
+            border-radius: 6px;
+            width: 100%;
+            font-family: inherit;
+            font-size: 0.9rem;
+        }
+        input[type="checkbox"] { width: auto; }
+        textarea { min-height: 84px; resize: vertical; }
+        .form-group { margin-bottom: 0.85rem; }
+        label { display: block; margin-bottom: 0.35rem; color: #cbd5e1; font-size: 0.875rem; }
+        .checkline { display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; color: #cbd5e1; }
+        .checkline input { width: auto; }
+        fieldset { border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin: 0.75rem 0 0; }
+        legend { padding: 0 0.35rem; color: #cbd5e1; font-size: 0.85rem; }
+        .badge {
+            display: inline-block;
+            padding: 0.15rem 0.5rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            white-space: nowrap;
+            border: 1px solid transparent;
+        }
+        .badge.ok { background: rgba(16, 185, 129, 0.15); color: #6ee7b7; border-color: #065f46; }
+        .badge.warn { background: rgba(245, 158, 11, 0.15); color: #fcd34d; border-color: #92400e; }
+        .badge.danger { background: rgba(239, 68, 68, 0.15); color: #fca5a5; border-color: #7f1d1d; }
+        .badge.muted { background: rgba(148, 163, 184, 0.15); color: #cbd5e1; border-color: #475569; }
+        .badge.review { background: rgba(139, 92, 246, 0.18); color: #c4b5fd; border-color: #5b21b6; }
+        .banner {
+            padding: 0.65rem 1.5rem;
+            font-size: 0.85rem;
+            border-bottom: 1px solid var(--border);
+            background: #451a03;
+            color: #fdba74;
+        }
+        .banner.ok { background: #052e22; color: #86efac; }
+        .banner.hidden { display: none; }
+        .message { margin-top: 0.75rem; padding: 0.65rem 0.75rem; border-radius: 6px; font-size: 0.875rem; }
+        .message.error { background: #7f1d1d; color: #fecaca; }
+        .message.success { background: #14532d; color: #bbf7d0; }
+        .message.info { background: #1e3a5f; color: #bfdbfe; }
+        .empty { color: var(--muted); font-size: 0.9rem; padding: 0.75rem 0; }
+        .muted { color: var(--muted); }
+        .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+        .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
+        table { width: 100%; border-collapse: collapse; min-width: 720px; }
+        th, td { padding: 0.6rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border); font-size: 0.875rem; vertical-align: top; }
+        th { background: #0b1220; color: var(--muted); font-weight: 600; white-space: nowrap; }
+        tbody tr:hover { background: rgba(148, 163, 184, 0.05); }
+        tbody tr:last-child td { border-bottom: none; }
+        .actions { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+        .status {
+            display: inline-block;
+            padding: 0.15rem 0.5rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: #475569;
+        }
         .status.queued { background: #475569; }
-        .status.running { background: #f59e0b; color: #000; }
-        .status.awaiting_review { background: #8b5cf6; }
-        .status.approved { background: #10b981; }
+        .status.running { background: var(--warn); color: #111; }
+        .status.awaiting_review { background: var(--review); }
+        .status.analyzed { background: #0ea5e9; color: #082f49; }
+        .status.explained { background: #06b6d4; color: #082f49; }
+        .status.approved { background: var(--ok); color: #052e16; }
         .status.committed { background: #059669; }
-        .status.failed { background: #ef4444; }
+        .status.failed { background: var(--danger); }
         .status.cancelled { background: #64748b; }
         .status.expired { background: #92400e; }
-        .hidden { display: none; }
-        .token-input { max-width: 400px; }
-        .error { color: #fca5a5; background: #7f1d1d; padding: 0.75rem; border-radius: 4px; margin-top: 0.5rem; }
-        .success { color: #86efac; background: #14532d; padding: 0.75rem; border-radius: 4px; margin-top: 0.5rem; }
-        pre { background: #0f172a; padding: 1rem; overflow-x: auto; border-radius: 4px; border: 1px solid #475569; white-space: pre-wrap; word-break: break-all; }
-        @media (max-width: 768px) {
+        .repo-item {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.75rem;
+            margin-bottom: 0.6rem;
+            background: var(--panel-2);
+        }
+        .repo-item .path { color: var(--muted); font-size: 0.78rem; word-break: break-all; }
+        .repo-status {
+            margin-top: 0.6rem;
+            padding: 0.6rem;
+            border-radius: 6px;
+            background: #0b1220;
+            border: 1px solid var(--border);
+            font-size: 0.8rem;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 0.6rem 1rem;
+            margin: 0.75rem 0;
+            font-size: 0.85rem;
+        }
+        .meta-grid .k { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; }
+        .meta-grid .v { word-break: break-all; }
+        pre.block {
+            background: #0b1220;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.85rem;
+            overflow-x: auto;
+            max-height: 320px;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            margin: 0.35rem 0 0;
+            font-size: 0.85rem;
+        }
+        .diff-wrap { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-top: 0.5rem; }
+        .diff-head { padding: 0.5rem 0.7rem; background: #0b1220; border-bottom: 1px solid var(--border); font-size: 0.8rem; }
+        .diff-files { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.35rem; }
+        .diff-files .badge { font-family: ui-monospace, monospace; }
+        .diff {
+            margin: 0;
+            max-height: 460px;
+            overflow: auto;
+            background: #0b1220;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 0.78rem;
+            line-height: 1.5;
+        }
+        .diff-line { display: block; padding: 0 0.75rem; white-space: pre; }
+        .diff-line.add { background: rgba(16, 185, 129, 0.14); color: #a7f3d0; }
+        .diff-line.del { background: rgba(239, 68, 68, 0.14); color: #fecaca; }
+        .diff-line.hunk { background: rgba(59, 130, 246, 0.12); color: #bfdbfe; }
+        .diff-line.file { background: rgba(148, 163, 184, 0.1); color: #cbd5e1; font-weight: 600; }
+        .timeline { list-style: none; padding: 0; margin: 0.5rem 0 0; }
+        .timeline li { padding: 0.45rem 0 0.45rem 0.9rem; border-left: 2px solid var(--border); font-size: 0.82rem; }
+        .timeline .when { color: var(--muted); margin-right: 0.5rem; }
+        .timeline .detail { color: var(--muted); font-size: 0.78rem; word-break: break-word; }
+        .review-panel { border: 1px solid #5b21b6; background: rgba(139, 92, 246, 0.08); border-radius: 8px; padding: 0.9rem; margin-top: 0.9rem; }
+        .review-panel h3, .detail-block h3 { margin: 0 0 0.4rem; font-size: 0.95rem; }
+        .detail-block { margin-top: 1.1rem; }
+        .hash { font-family: ui-monospace, monospace; font-size: 0.78rem; word-break: break-all; color: #cbd5e1; }
+        .hidden { display: none !important; }
+        @media (max-width: 900px) {
+            .grid-2 { grid-template-columns: 1fr; }
             main { padding: 1rem; }
-            .section { padding: 1rem; }
-            table { font-size: 0.875rem; }
-            th, td { padding: 0.5rem; }
+            header { padding: 0.75rem 1rem; }
+            .card { padding: 1rem; }
+        }
+        @media (max-width: 600px) {
+            table { min-width: 560px; }
+            .meta-grid { grid-template-columns: 1fr 1fr; }
+            .banner { padding: 0.65rem 1rem; }
         }
     </style>
 </head>
 <body>
     <header>
-        <h1>🤖 GitBot Dashboard</h1>
+        <h1>GitBot</h1>
+        <div class="header-meta">
+            <span id="healthBadge" class="badge muted">Connecting…</span>
+            <span id="dryRunBadge" class="badge warn hidden">dry-run</span>
+            <span id="repoCountBadge" class="badge muted hidden"></span>
+            <span id="aiBadge" class="badge muted hidden"></span>
+            <span id="schedulerBadge" class="badge muted hidden"></span>
+        </div>
     </header>
-    <div class="warning">
-        ⚠️ Approval applies to the reviewed diff only. Subsequent modifications invalidate approvals. No automatic commits, pushes, or PRs. Token stored in memory only for this session.
-    </div>
+
+    <div id="dryRunBanner" class="banner hidden"></div>
+
     <main>
-        <section class="section">
-            <h2>Authentication</h2>
-            <div class="form-group">
-                <label for="apiToken">API Token (in-memory only, cleared on disconnect)</label>
-                <input type="password" id="apiToken" class="token-input" placeholder="Enter your GitBot API token">
+        <section class="card" id="connectCard">
+            <h2>Connection</h2>
+            <p class="hint">
+                Repositories, tasks, diffs, audit data, and GitHub activity require the bearer token
+                created with <span class="mono">gitbot --rotate-token</span>. The health panel is the
+                only unauthenticated view. The token is kept in memory only and is cleared on reload.
+            </p>
+            <div class="row">
+                <div style="flex: 1 1 320px;">
+                    <label for="apiToken">API token</label>
+                    <input type="password" id="apiToken" autocomplete="off" placeholder="Paste token file contents">
+                </div>
+                <button id="connectBtn" type="button" style="align-self: flex-end;">Connect</button>
+                <button id="disconnectBtn" type="button" class="secondary" style="align-self: flex-end;">Disconnect</button>
             </div>
-            <button onclick="saveToken()">Connect</button>
-            <button class="secondary" onclick="clearToken()">Disconnect</button>
-            <div id="healthStatus"></div>
+            <div id="connectionMsg"></div>
         </section>
 
-        <section class="section">
-            <h2>Repositories (Allowlisted)</h2>
-            <button onclick="loadRepos()">Refresh</button>
-            <div id="reposList"></div>
+        <section class="card" id="systemCard">
+            <div class="spread">
+                <div>
+                    <h2>System status</h2>
+                    <p class="hint">
+                        Live server, sandbox, database, scheduler, and AI toolchain state. "AI toolchain
+                        ready" does not mean a model provider has been proven reachable from inside the
+                        network-isolated sandbox.
+                    </p>
+                </div>
+                <button id="refreshSystemBtn" type="button" class="secondary">Refresh</button>
+            </div>
+            <div id="systemStatus"><div class="empty">Loading system status…</div></div>
         </section>
 
-        <section class="section">
-            <h2>Create Task</h2>
-            <div class="form-group">
-                <label for="repoSelect">Repository</label>
-                <select id="repoSelect"></select>
-            </div>
-            <div class="form-group">
-                <label for="taskType">Task Type</label>
-                <select id="taskType">
-                    <option value="analyze">Analyze</option>
-                    <option value="bugfix">Bug Fix</option>
-                    <option value="feature">Feature</option>
-                    <option value="docs">Documentation</option>
-                    <option value="deps">Dependencies</option>
-                    <option value="tests">Tests</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="taskPrompt">Task Description</label>
-                <textarea id="taskPrompt" placeholder="Describe what you want GitBot to do..."></textarea>
-            </div>
-            <button onclick="createTask()">Create Task</button>
-            <div id="createTaskMsg"></div>
-        </section>
+        <div class="grid-2">
+            <section class="card" id="reposCard">
+                <h2>Repositories</h2>
+                <p class="hint">
+                    Only explicitly allowlisted repositories can be used. Paths must be absolute, live inside your
+                    home directory, be a git repository, and never point at GitBot's own source tree.
+                </p>
+                <div class="row" style="margin-bottom: 0.75rem;">
+                    <button id="refreshReposBtn" type="button" class="secondary">Refresh</button>
+                </div>
+                <div id="reposList"><div class="empty">Loading repositories…</div></div>
 
-        <section class="section">
-            <h2>Tasks</h2>
-            <button onclick="loadTasks()">Refresh</button>
+                <fieldset>
+                    <legend>Add an allowlisted repository</legend>
+                    <div class="form-group">
+                        <label for="repoPath">Absolute path</label>
+                        <input id="repoPath" placeholder="/home/you/projects/example">
+                    </div>
+                    <div class="form-group">
+                        <label for="repoSlug">Slug (optional, owner/name)</label>
+                        <input id="repoSlug" placeholder="you/example">
+                    </div>
+                    <div class="form-group">
+                        <label for="repoBranch">Default branch</label>
+                        <input id="repoBranch" value="main">
+                    </div>
+                    <div class="checkline" style="margin-bottom: 0.75rem;">
+                        <input type="checkbox" id="repoAllowCommit">
+                        <label for="repoAllowCommit" style="margin: 0;">Allow local commits for this repository</label>
+                    </div>
+                    <div class="form-group">
+                        <label>Allowed task types</label>
+                        <div id="repoTaskTypes" class="row"></div>
+                        <p class="hint" style="margin: 0.35rem 0 0;">
+                            Disabled types are refused by the server for this repository only.
+                        </p>
+                    </div>
+                    <div class="form-group">
+                        <label for="repoTestCommand">Test command (optional)</label>
+                        <input id="repoTestCommand" placeholder="uv run pytest -q">
+                        <p class="hint" style="margin: 0.35rem 0 0;">
+                            Run inside the disposable sandbox after a code-change task, never on the live
+                            repository. Shell operators are rejected.
+                        </p>
+                    </div>
+                    <button id="addRepoBtn" type="button">Add repository</button>
+                    <div id="repoMsg"></div>
+                </fieldset>
+            </section>
+
+            <section class="card" id="createCard">
+                <h2>Create Task</h2>
+                <p class="hint">
+                    <strong>Analyze</strong> and <strong>Explain</strong> run read-only inside a
+                    network-isolated sandbox and never change the repository. Write tasks run OpenCode
+                    on a disposable snapshot; the reviewed patch is applied to your current branch only
+                    after you approve and choose to commit. Nothing is pushed automatically.
+                </p>
+                <div class="form-group">
+                    <label for="repoSelect">Repository</label>
+                    <select id="repoSelect"></select>
+                </div>
+                <div class="form-group">
+                    <label for="taskType">Task type</label>
+                    <select id="taskType">
+                        <option value="analyze">Analyze</option>
+                        <option value="explain">Explain</option>
+                        <option value="bugfix">Bug fix</option>
+                        <option value="feature">Feature</option>
+                        <option value="docs">Documentation</option>
+                        <option value="deps">Dependencies</option>
+                        <option value="tests">Tests</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="taskPrompt">Task description</label>
+                    <textarea id="taskPrompt" placeholder="Describe the change or analysis you want…"></textarea>
+                </div>
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label for="taskSchedule">Schedule for (optional)</label>
+                        <input type="datetime-local" id="taskSchedule">
+                        <p class="hint" style="margin: 0.35rem 0 0;">
+                            Leave empty to keep the task queued until you run it.
+                        </p>
+                    </div>
+                    <div class="form-group">
+                        <label for="taskMaxRetries">Automatic retries (0–5)</label>
+                        <input type="number" id="taskMaxRetries" min="0" max="5" step="1" value="0">
+                        <p class="hint" style="margin: 0.35rem 0 0;">
+                            A retry creates a fresh task; it never reuses a failed run.
+                        </p>
+                    </div>
+                </div>
+                <div class="row">
+                    <button id="createTaskBtn" type="button">Create task</button>
+                    <button id="createRunTaskBtn" type="button" class="success">Create &amp; run</button>
+                </div>
+                <div id="createTaskMsg"></div>
+            </section>
+        </div>
+
+        <section class="card" id="tasksCard">
+            <div class="spread">
+                <div>
+                    <h2>Tasks</h2>
+                    <p class="hint">Status, AI response, diff, and history for every task.</p>
+                </div>
+                <div class="row">
+                    <label class="checkline" for="autoRefresh" style="margin: 0;">
+                        <input type="checkbox" id="autoRefresh" checked> Auto-refresh
+                    </label>
+                    <select id="stateFilter" style="width: auto;">
+                        <option value="">All states</option>
+                        <option value="queued">Queued</option>
+                        <option value="running">Running</option>
+                        <option value="awaiting_review">Awaiting review</option>
+                        <option value="analyzed">Analyzed</option>
+                        <option value="explained">Explained</option>
+                        <option value="approved">Approved</option>
+                        <option value="committed">Committed</option>
+                        <option value="failed">Failed</option>
+                        <option value="cancelled">Cancelled</option>
+                        <option value="expired">Expired</option>
+                    </select>
+                    <button id="refreshTasksBtn" type="button" class="secondary">Refresh</button>
+                    <button id="schedulerTickBtn" type="button" class="secondary"
+                            title="Run queued tasks whose scheduled time has passed">Run due now</button>
+                </div>
+            </div>
             <div id="tasksMsg"></div>
-            <div style="overflow-x: auto;">
-                <table id="tasksTable">
+            <div class="table-wrap">
+                <table>
                     <thead>
                         <tr>
                             <th>ID</th>
-                            <th>Repo</th>
+                            <th>Repository</th>
                             <th>Type</th>
                             <th>Description</th>
                             <th>Status</th>
@@ -118,360 +422,2355 @@
                             <th>Actions</th>
                         </tr>
                     </thead>
-                    <tbody></tbody>
+                    <tbody id="tasksBody"></tbody>
                 </table>
             </div>
         </section>
 
-        <section class="section">
-            <h2>Pending Approvals</h2>
-            <button onclick="loadApprovals()">Refresh</button>
-            <div id="approvalsMsg"></div>
-            <div style="overflow-x: auto;">
-                <table id="approvalsTable">
+        <section class="card hidden" id="taskDetailSection">
+            <div class="spread">
+                <div>
+                    <h2>Task detail</h2>
+                    <p class="hint" id="taskDetailSubtitle"></p>
+                </div>
+                <button id="closeDetailBtn" type="button" class="secondary">Close</button>
+            </div>
+            <div id="taskDetailMsg"></div>
+            <div id="taskDetail"></div>
+        </section>
+
+        <section class="card" id="schedulesCard">
+            <div class="spread">
+                <div>
+                    <h2>Daily Automation</h2>
+                    <p class="hint">Recurring daily schedules per repository. Executes at local wall-clock time with duplicate prevention and DST handling.</p>
+                </div>
+                <div class="row">
+                    <button id="newScheduleBtn" type="button">New daily schedule</button>
+                    <button id="refreshSchedulesBtn" type="button" class="secondary">Refresh</button>
+                </div>
+            </div>
+            <div id="schedulesMsg"></div>
+
+            <div id="scheduleFormContainer" class="hidden" style="margin-bottom: 1.25rem; padding: 1rem; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2);">
+                <h3 id="scheduleFormTitle" style="margin-top: 0; font-size: 1rem;">Create daily schedule</h3>
+                <input type="hidden" id="scheduleEditId" value="">
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label for="scheduleRepoSelect">Repository</label>
+                        <select id="scheduleRepoSelect"></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="scheduleTaskType">Task type</label>
+                        <select id="scheduleTaskType">
+                            <option value="analyze">analyze (read-only)</option>
+                            <option value="explain">explain (read-only)</option>
+                            <option value="bugfix">bugfix</option>
+                            <option value="feature">feature</option>
+                            <option value="docs">docs</option>
+                            <option value="deps">deps</option>
+                            <option value="tests">tests</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label for="scheduleLocalTime">Local time (HH:MM, 24-hour)</label>
+                        <input type="time" id="scheduleLocalTime" placeholder="09:00" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="scheduleTimezone">Timezone (IANA name or 'localtime')</label>
+                        <input type="text" id="scheduleTimezone" placeholder="Asia/Kolkata">
+                        <span class="hint" id="scheduleDetectedTzHint" style="display:block; margin-top:0.25rem;"></span>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="schedulePrompt">Prompt / Instructions</label>
+                    <textarea id="schedulePrompt" placeholder="Run daily code analysis and verify test suite..." rows="3"></textarea>
+                </div>
+                <div class="row end">
+                    <button id="cancelScheduleBtn" type="button" class="secondary">Cancel</button>
+                    <button id="saveScheduleBtn" type="button" class="success">Save schedule</button>
+                </div>
+            </div>
+
+            <div class="table-wrap">
+                <table>
                     <thead>
                         <tr>
-                            <th>Approval ID</th>
-                            <th>Task ID</th>
-                            <th>Repo</th>
+                            <th>Schedule</th>
+                            <th>Repository</th>
+                            <th>Type</th>
+                            <th>Time & Zone</th>
+                            <th>Status</th>
+                            <th>Last run</th>
+                            <th>Next run</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="schedulesBody"></tbody>
+                </table>
+            </div>
+
+            <div id="scheduleHistorySection" class="hidden" style="margin-top: 1.25rem; border-top: 1px solid var(--border); padding-top: 1rem;">
+                <div class="spread">
+                    <div>
+                        <h3 style="margin: 0; font-size: 1rem;" id="scheduleHistoryTitle">Execution History</h3>
+                        <p class="hint" id="scheduleHistorySubtitle"></p>
+                    </div>
+                    <button id="closeScheduleHistoryBtn" type="button" class="secondary small">Close history</button>
+                </div>
+                <div id="scheduleHistoryMsg"></div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Outcome</th>
+                                <th>Calendar Date</th>
+                                <th>Task ID</th>
+                                <th>Task State</th>
+                            </tr>
+                        </thead>
+                        <tbody id="scheduleHistoryBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section class="card" id="approvalsCard">
+            <div class="spread">
+                <div>
+                    <h2>Pending approvals</h2>
+                    <p class="hint">Approvals are single-use, expire, and are bound to the exact diff hash shown.</p>
+                </div>
+                <button id="refreshApprovalsBtn" type="button" class="secondary">Refresh</button>
+            </div>
+            <div id="approvalsMsg"></div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Approval</th>
+                            <th>Task</th>
                             <th>Action</th>
-                            <th>Diff Hash</th>
+                            <th>Diff hash</th>
                             <th>Expires</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
-                    <tbody></tbody>
+                    <tbody id="approvalsBody"></tbody>
                 </table>
             </div>
         </section>
 
-        <section class="section hidden" id="taskDetailSection">
-            <h2>Task Details</h2>
-            <button class="secondary" onclick="closeTaskDetail()">Close</button>
-            <div id="taskDetail"></div>
+        <section class="card" id="contributionsCard">
+            <div class="spread">
+                <div>
+                    <h2>Contribution activity</h2>
+                    <p class="hint">
+                        Read-only GitHub contribution summary for the last 30 days. GitBot never creates
+                        artificial activity or changes commit dates.
+                    </p>
+                </div>
+                <button id="loadContributionsBtn" type="button" class="secondary">Load</button>
+            </div>
+            <div id="contributionsMsg"></div>
+            <div id="contributionsBody"><div class="empty">Not loaded.</div></div>
         </section>
     </main>
 
     <script>
+        'use strict';
+
         const API_BASE = window.location.origin;
+        const STATE_LABELS = {
+            queued: 'Queued',
+            running: 'Running',
+            awaiting_review: 'Awaiting review',
+            analyzed: 'Analyzed',
+            explained: 'Explained',
+            approved: 'Approved',
+            committed: 'Committed',
+            failed: 'Failed',
+            cancelled: 'Cancelled',
+            expired: 'Expired'
+        };
+        const TASK_TYPES = ['analyze', 'explain', 'bugfix', 'feature', 'docs', 'deps', 'tests'];
+        const TASK_TYPE_LABELS = {
+            analyze: 'Analyze',
+            explain: 'Explain',
+            bugfix: 'Bug fix',
+            feature: 'Feature',
+            docs: 'Documentation',
+            deps: 'Dependencies',
+            tests: 'Tests'
+        };
+        const READ_ONLY_TASK_TYPES = new Set(['analyze', 'explain']);
+        const DIFF_RENDER_LIMIT = 5000;
+
         let token = '';
+        let health = null;
+        let repos = [];
+        let tasks = [];
+        let pendingApprovals = [];
+        let currentTask = null;
+        let refreshTimer = null;
+        let taskCreateInFlight = false;
+        let pendingCreatedTask = null;
+        let repoTypeBoxes = [];
+        let schedules = [];
+        let detectedTimezone = 'UTC';
+        let currentScheduleHistoryId = null;
 
-        function saveToken() {
-            const input = document.getElementById('apiToken');
-            token = input.value.trim();
-            input.value = '';
-            checkHealth();
-            loadRepos();
-            loadTasks();
-            loadApprovals();
-        }
-
-        function clearToken() {
-            token = '';
-            document.getElementById('apiToken').value = '';
-            document.getElementById('healthStatus').textContent = '';
-            document.getElementById('reposList').textContent = '';
-            const rt = document.querySelector('#tasksTable tbody');
-            if (rt) rt.innerHTML = '';
-            const ra = document.querySelector('#approvalsTable tbody');
-            if (ra) ra.innerHTML = '';
-            const rs = document.getElementById('repoSelect');
-            if (rs) rs.innerHTML = '';
-        }
-
-        function safeText(text) {
-            const div = document.createElement('div');
-            div.textContent = text == null ? '' : String(text);
-            return div.innerHTML;
-        }
-
-        async function apiCall(path, options = {}) {
-            if (!token) throw new Error('No token set. Enter API token and click Connect.');
-            const headers = { 'Content-Type': 'application/json', ...options.headers };
-            headers['Authorization'] = `Bearer ${token}`;
-            const response = await fetch(API_BASE + path, { ...options, headers });
-            const contentType = response.headers.get('content-type') || '';
-            if (contentType.includes('application/json')) {
-                const data = await response.json();
-                if (!response.ok) {
-                    throw new Error(data?.error?.message || JSON.stringify(data));
-                }
-                return data;
-            } else {
-                const text = await response.text();
-                if (!response.ok) throw new Error(text);
-                throw new Error('Unexpected response format');
+        class ApiError extends Error {
+            constructor(message, status, code) {
+                super(message);
+                this.name = 'ApiError';
+                this.status = status || 0;
+                this.code = code || '';
             }
         }
 
-        async function checkHealth() {
-            try {
-                const data = await apiCall('/api/health');
-                const el = document.getElementById('healthStatus');
-                el.innerHTML = '';
-                const span = document.createElement('span');
-                span.style.color = '#10b981';
-                span.textContent = '✓ Healthy';
-                el.appendChild(span);
-                el.appendChild(document.createTextNode(' - Version: ' + data.version + ', Dry Run: ' + data.dry_run));
-            } catch (e) {
-                const el = document.getElementById('healthStatus');
-                el.innerHTML = '';
-                const span = document.createElement('span');
-                span.style.color = '#ef4444';
-                span.textContent = '✗ Error';
-                el.appendChild(span);
-                el.appendChild(document.createTextNode(' - ' + e.message));
-            }
+        function $(id) {
+            return document.getElementById(id);
         }
 
-        async function loadRepos() {
-            try {
-                const data = await apiCall('/api/repos');
-                const select = document.getElementById('repoSelect');
-                select.innerHTML = '';
-                const list = document.getElementById('reposList');
-                list.innerHTML = '';
-                if (!data.repos || data.repos.length === 0) {
-                    const p = document.createElement('p');
-                    p.textContent = 'No allowlisted repositories. Add repositories via API.';
-                    list.appendChild(p);
-                    return;
-                }
-                data.repos.forEach(repo => {
-                    const option = document.createElement('option');
-                    option.value = repo.id;
-                    option.textContent = repo.slug + ' (' + repo.path + ')';
-                    select.appendChild(option);
-                    const item = document.createElement('div');
-                    item.textContent = repo.slug + ' - ' + repo.path;
-                    list.appendChild(item);
-                });
-            } catch (e) {
-                const list = document.getElementById('reposList');
-                list.innerHTML = '';
-                const div = document.createElement('div');
-                div.className = 'error';
-                div.textContent = e.message;
-                list.appendChild(div);
-            }
+        function isTokenRequired(error) {
+            return Boolean(error) && (
+                error.code === 'missing_token' ||
+                error.code === 'unauthorized' ||
+                error.status === 401
+            );
         }
 
-        async function createTask() {
-            const msg = document.getElementById('createTaskMsg');
-            msg.innerHTML = '';
-            try {
-                const repoId = parseInt(document.getElementById('repoSelect').value);
-                const taskType = document.getElementById('taskType').value;
-                const prompt = document.getElementById('taskPrompt').value;
-                if (isNaN(repoId) || !prompt.trim()) {
-                    const div = document.createElement('div');
-                    div.className = 'error';
-                    div.textContent = 'Please select a repo and enter a task description';
-                    msg.appendChild(div);
-                    return;
-                }
-                const data = await apiCall('/api/tasks', {
-                    method: 'POST',
-                    body: JSON.stringify({ repo_id: repoId, task_type: taskType, prompt: prompt.trim() })
-                });
-                const div = document.createElement('div');
-                div.className = 'success';
-                div.textContent = 'Task created: ' + data.task.id;
-                msg.appendChild(div);
-                document.getElementById('taskPrompt').value = '';
-                loadTasks();
-            } catch (e) {
-                const div = document.createElement('div');
-                div.className = 'error';
-                div.textContent = e.message;
-                msg.appendChild(div);
-            }
+        function tokenHint(what) {
+            return 'Connect with your API token to ' + what + '. ' +
+                'The token file is created with `gitbot --rotate-token`.';
         }
 
-        async function loadTasks() {
-            const msg = document.getElementById('tasksMsg');
-            msg.innerHTML = '';
-            try {
-                const data = await apiCall('/api/tasks');
-                const tbody = document.querySelector('#tasksTable tbody');
-                tbody.innerHTML = '';
-                if (!data.tasks || data.tasks.length === 0) {
-                    const div = document.createElement('div');
-                    div.textContent = 'No tasks yet.';
-                    msg.appendChild(div);
-                    return;
-                }
-                data.tasks.forEach(task => {
-                    const row = tbody.insertRow();
-                    const idCell = row.insertCell();
-                    idCell.textContent = task.id ? task.id.substring(0, 12) + '...' : '';
-                    const repoCell = row.insertCell();
-                    repoCell.textContent = task.repo_id || '';
-                    const typeCell = row.insertCell();
-                    typeCell.textContent = task.task_type || '';
-                    const descCell = row.insertCell();
-                    descCell.textContent = (task.prompt || '').substring(0, 60);
-                    const statusCell = row.insertCell();
-                    const span = document.createElement('span');
-                    span.className = 'status ' + (task.state || '');
-                    span.textContent = task.state || '';
-                    statusCell.appendChild(span);
-                    const createdCell = row.insertCell();
-                    createdCell.textContent = task.created_at || '';
-                    const actionsCell = row.insertCell();
-                    const viewBtn = document.createElement('button');
-                    viewBtn.textContent = 'View';
-                    viewBtn.onclick = () => viewTask(task.id);
-                    actionsCell.appendChild(viewBtn);
-                    if (task.state === 'queued') {
-                        const runBtn = document.createElement('button');
-                        runBtn.textContent = 'Run';
-                        runBtn.onclick = () => runTask(task.id);
-                        actionsCell.appendChild(runBtn);
-                    }
-                });
-            } catch (e) {
-                const div = document.createElement('div');
-                div.className = 'error';
-                div.textContent = e.message;
-                msg.appendChild(div);
-            }
+        function node(tag, options) {
+            const opts = options || {};
+            const element = document.createElement(tag);
+            if (opts.className) element.className = opts.className;
+            if (opts.text !== undefined && opts.text !== null) element.textContent = String(opts.text);
+            if (opts.title) element.title = opts.title;
+            if (opts.type) element.type = opts.type;
+            if (opts.id) element.id = opts.id;
+            if (opts.htmlFor) element.htmlFor = opts.htmlFor;
+            if (opts.placeholder) element.placeholder = opts.placeholder;
+            if (opts.style) element.setAttribute('style', opts.style);
+            if (opts.value !== undefined) element.value = opts.value;
+            if (opts.disabled) element.disabled = true;
+            if (opts.checked) element.checked = true;
+            (opts.children || []).forEach((child) => element.appendChild(child));
+            if (opts.onClick) element.addEventListener('click', opts.onClick);
+            if (opts.onChange) element.addEventListener('change', opts.onChange);
+            return element;
         }
 
-        async function viewTask(taskId) {
-            try {
-                const data = await apiCall(`/api/tasks/${taskId}`);
-                const detail = document.getElementById('taskDetail');
-                detail.innerHTML = '';
-                const add = (label, value) => {
-                    const p = document.createElement('p');
-                    const b = document.createElement('strong');
-                    b.textContent = label + ': ';
-                    p.appendChild(b);
-                    p.appendChild(document.createTextNode(value == null ? 'N/A' : String(value)));
-                    detail.appendChild(p);
-                };
-                add('ID', data.task.id);
-                const p = document.createElement('p');
-                const b = document.createElement('strong');
-                b.textContent = 'State: ';
-                p.appendChild(b);
-                const s = document.createElement('span');
-                s.className = 'status ' + (data.task.state || '');
-                s.textContent = data.task.state || '';
-                p.appendChild(s);
-                detail.appendChild(p);
-                add('Prompt', data.task.prompt);
-                add('Branch', data.task.branch_name);
-                add('Diff Hash', data.task.diff_hash);
-                add('Error', data.task.error_message);
-                const h3 = document.createElement('h3');
-                h3.textContent = 'Events';
-                detail.appendChild(h3);
-                if (data.events && data.events.length > 0) {
-                    const ul = document.createElement('ul');
-                    data.events.forEach(e => {
-                        const li = document.createElement('li');
-                        li.textContent = (e.created_at || '') + ' - ' + (e.event_type || '') + ': ' + JSON.stringify(e.detail || {});
-                        ul.appendChild(li);
+        function clear(element) {
+            if (element) element.replaceChildren();
+        }
+
+        function message(container, text, kind) {
+            clear(container);
+            if (!text) return;
+            container.appendChild(node('div', { className: 'message ' + (kind || 'info'), text: text }));
+        }
+
+        function extractError(payload, fallback) {
+            if (!payload) return fallback || 'Request failed';
+            const error = payload.error
+                || (payload.detail && payload.detail.error ? payload.detail.error : null);
+            if (error && error.message) {
+                const errors = error.details && Array.isArray(error.details.errors)
+                    ? error.details.errors
+                    : [];
+                if (errors.length) {
+                    const fields = errors.slice(0, 3).map((item) => {
+                        const location = Array.isArray(item.loc)
+                            ? item.loc.filter((part) => part !== 'body').join('.')
+                            : '';
+                        return (location ? location + ': ' : '') + (item.msg || 'invalid value');
                     });
-                    detail.appendChild(ul);
-                } else {
-                    const p2 = document.createElement('p');
-                    p2.textContent = 'No events.';
-                    detail.appendChild(p2);
+                    return error.message + ' — ' + fields.join('; ');
                 }
-                document.getElementById('taskDetailSection').classList.remove('hidden');
-            } catch (e) {
-                alert('Error: ' + e.message);
+                return error.message;
+            }
+            if (typeof payload.detail === 'string') return payload.detail;
+            return fallback || JSON.stringify(payload);
+        }
+
+        function extractErrorCode(payload) {
+            if (payload && payload.error && payload.error.code) {
+                return payload.error.code;
+            }
+            if (payload && payload.detail && payload.detail.error && payload.detail.error.code) {
+                return payload.detail.error.code;
+            }
+            return '';
+        }
+
+        function describeApiError(error, context) {
+            const kept = context === 'create'
+                ? ' Your task description and form values were kept.'
+                : '';
+            if (!(error instanceof ApiError)) {
+                const text = error && error.message ? error.message : String(error);
+                return 'Unexpected error: ' + text + kept;
+            }
+            const detail = error.message || 'Request failed.';
+            if (error.code === 'missing_token') {
+                return 'Not connected: ' + detail + kept;
+            }
+            if (error.status === 0) {
+                return detail + kept;
+            }
+            if (error.status === 401) {
+                return 'Authentication failed: ' + detail + kept;
+            }
+            if (error.status === 403) {
+                return 'Not permitted: ' + detail + kept;
+            }
+            if (error.status === 422) {
+                return 'Validation failed: ' + detail + kept;
+            }
+            if (error.status >= 500) {
+                return 'Server error (HTTP ' + error.status + '): ' + detail + kept;
+            }
+            return 'Request failed (HTTP ' + error.status + '): ' + detail + kept;
+        }
+
+        function createRunBlockedReason(taskType) {
+            if (!health) return 'Waiting for the server health check.';
+            const type = taskType || ($('taskType') ? $('taskType').value : '');
+            if (health.dry_run && !READ_ONLY_TASK_TYPES.has(type)) {
+                if (health.supervised_automation_enabled) {
+                    if (!token) return 'Connect with the API token before running a task.';
+                    return '';
+                }
+                return 'dry-run is enabled; analyze and explain tasks are read-only and still allowed, ' +
+                    'but write tasks need supervised automation or GITBOT_DRY_RUN=false';
+            }
+            if (!token) return 'Connect with the API token before running a task.';
+            return '';
+        }
+
+        function syncCreateRunControl() {
+            const runBtn = $('createRunTaskBtn');
+            const tickBtn = $('schedulerTickBtn');
+            if (tickBtn) {
+                tickBtn.disabled = !token;
+                tickBtn.title = token
+                    ? 'Run queued tasks whose scheduled time has passed'
+                    : 'Connect with the API token to run scheduled tasks';
+            }
+            if (!runBtn || taskCreateInFlight) return;
+            const reason = createRunBlockedReason();
+            runBtn.disabled = Boolean(reason);
+            runBtn.title = reason || 'Create this task and run it immediately';
+        }
+
+        function setCreateBusy(busy, runNow) {
+            const createBtn = $('createTaskBtn');
+            const runBtn = $('createRunTaskBtn');
+            if (!createBtn || !runBtn) return;
+            createBtn.disabled = busy;
+            runBtn.disabled = busy;
+            createBtn.textContent = busy && !runNow ? 'Creating…' : 'Create task';
+            runBtn.textContent = busy && runNow ? 'Creating & running…' : 'Create & run';
+            createBtn.setAttribute('aria-busy', busy ? 'true' : 'false');
+            runBtn.setAttribute('aria-busy', busy ? 'true' : 'false');
+            if (!busy) syncCreateRunControl();
+        }
+
+        async function apiCall(path, options) {
+            const opts = options || {};
+            const method = opts.method || 'GET';
+            const needsAuth = opts.auth !== undefined ? opts.auth : method !== 'GET';
+            if (needsAuth && !token) {
+                throw new ApiError(
+                    'Connect with your API token first (repositories, tasks, and GitHub data require it).',
+                    401,
+                    'missing_token'
+                );
+            }
+            const headers = {};
+            if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
+            if (token) headers.Authorization = 'Bearer ' + token;
+            let response;
+            try {
+                response = await fetch(API_BASE + path, {
+                    method: method,
+                    headers: headers,
+                    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined
+                });
+            } catch (error) {
+                throw new ApiError(
+                    'Cannot reach the GitBot server: ' + error.message,
+                    0,
+                    'network_error'
+                );
+            }
+            if (response.status === 204) {
+                return null;
+            }
+            const contentType = response.headers.get('content-type') || '';
+            let payload = null;
+            if (contentType.includes('application/json')) {
+                payload = await response.json().catch(() => null);
+            } else {
+                const text = await response.text().catch(() => '');
+                if (!response.ok) {
+                    throw new ApiError(
+                        text || ('HTTP ' + response.status),
+                        response.status,
+                        'http_error'
+                    );
+                }
+                throw new ApiError(
+                    'Unexpected response from the server.',
+                    response.status,
+                    'invalid_response'
+                );
+            }
+            if (!response.ok) {
+                throw new ApiError(
+                    extractError(payload, 'HTTP ' + response.status),
+                    response.status,
+                    extractErrorCode(payload)
+                );
+            }
+            return payload;
+        }
+        function formatTime(value) {
+            if (!value) return '—';
+            const parsed = new Date(value);
+            if (Number.isNaN(parsed.getTime())) return String(value);
+            return parsed.toLocaleString();
+        }
+
+        function shortId(value, length) {
+            if (!value) return '—';
+            const limit = length || 12;
+            return value.length > limit ? value.slice(0, limit) + '…' : value;
+        }
+
+        function statusBadge(state) {
+            const span = node('span', {
+                className: 'status ' + (state || ''),
+                text: STATE_LABELS[state] || state || 'unknown'
+            });
+            return span;
+        }
+
+        function repoFor(repoId) {
+            return repos.find((repo) => repo.id === repoId) || null;
+        }
+
+        function repoLabel(repoId) {
+            const repo = repoFor(repoId);
+            return repo ? repo.slug : '#' + repoId;
+        }
+
+        // ------------------------------------------------------------------ health
+
+        function renderSystemStatus() {
+            const container = $('systemStatus');
+            if (!container) return;
+            container.replaceChildren();
+            if (!health) {
+                container.appendChild(node('div', {
+                    className: 'empty',
+                    text: 'Server status is unavailable. Check that GitBot is running on localhost.'
+                }));
+                return;
+            }
+            const db = health.database || {};
+            const migrations = db.migrations || [];
+            const sandbox = health.sandbox || {};
+            const opencode = health.opencode || {};
+            const ai = health.ai || {};
+            const scheduler = health.scheduler || {};
+            const counts = {};
+            tasks.forEach((task) => {
+                counts[task.state] = (counts[task.state] || 0) + 1;
+            });
+            const stateOrder = [
+                'queued', 'running', 'awaiting_review', 'analyzed', 'explained',
+                'approved', 'committed', 'failed', 'cancelled', 'expired'
+            ];
+            const countText = stateOrder
+                .filter((state) => counts[state])
+                .map((state) => state + ': ' + counts[state])
+                .join(' · ') || 'none';
+
+            const grid = node('div', { className: 'meta-grid' });
+            grid.appendChild(metaItem('Server', health.status + ' · v' + health.version));
+            grid.appendChild(metaItem('Dry-run', health.dry_run ? 'enabled' : 'disabled'));
+            grid.appendChild(metaItem(
+                'Supervised automation',
+                health.supervised_automation_enabled ? 'enabled' : 'disabled'
+            ));
+            grid.appendChild(metaItem(
+                'Approved local commits',
+                health.allow_approved_local_commits ? 'enabled' : 'disabled'
+            ));
+            grid.appendChild(metaItem('Database', db.path || '—', true));
+            grid.appendChild(metaItem(
+                'Migrations',
+                migrations.length ? migrations.length + ' applied · ' + migrations.join(', ') : '—'
+            ));
+            grid.appendChild(metaItem(
+                'Sandbox',
+                sandbox.can_run ? 'available' : 'unavailable'
+            ));
+            grid.appendChild(metaItem(
+                'Sandbox namespaces',
+                'user: ' + (sandbox.user_namespaces ? 'yes' : 'no') +
+                    ' · filesystem: ' + (sandbox.filesystem_namespaces ? 'yes' : 'no') +
+                    ' · network: ' + (sandbox.network_namespaces ? 'yes' : 'no')
+            ));
+            grid.appendChild(metaItem(
+                'Sandbox version',
+                sandbox.version || sandbox.bwrap_path || '—'
+            ));
+            grid.appendChild(metaItem(
+                'OpenCode',
+                opencode.available
+                    ? 'available · ' + (opencode.version || 'version unknown')
+                    : 'unavailable'
+            ));
+            grid.appendChild(metaItem(
+                'AI toolchain',
+                ai.toolchain_ready || ai.ready ? 'ready' : 'blocked'
+            ));
+            grid.appendChild(metaItem(
+                'AI provider route',
+                ai.provider_verified ? 'verified' : 'not verified'
+            ));
+            grid.appendChild(metaItem(
+                'Scheduler',
+                scheduler.enabled
+                    ? 'on · every ' + scheduler.interval_seconds + 's'
+                    : 'off'
+            ));
+            grid.appendChild(metaItem(
+                'Next scheduled task',
+                scheduler.next_scheduled_at ? formatTime(scheduler.next_scheduled_at) : 'none'
+            ));
+            grid.appendChild(metaItem(
+                'Next daily schedule',
+                scheduler.next_schedule_at ? formatTime(scheduler.next_schedule_at) : 'none'
+            ));
+            grid.appendChild(metaItem('Repositories', String(health.allowlisted_repos || 0)));
+            grid.appendChild(metaItem('Pending approvals', String(pendingApprovals.length)));
+            grid.appendChild(metaItem('Tasks', countText));
+            container.appendChild(grid);
+
+            if (sandbox.detail) {
+                container.appendChild(node('p', {
+                    className: 'muted',
+                    text: 'Sandbox detail: ' + sandbox.detail
+                }));
+            }
+            if (ai.note) {
+                container.appendChild(node('p', { className: 'muted', text: ai.note }));
+            }
+            if (health.dry_run && !health.supervised_automation_enabled) {
+                container.appendChild(node('p', {
+                    className: 'muted',
+                    text: 'Dry-run is enabled without supervised automation: scheduled write tasks cannot execute automatically until supervised automation is enabled.'
+                }));
+            }
+            if (health.dry_run && health.supervised_automation_enabled && !health.allow_approved_local_commits) {
+                container.appendChild(node('p', {
+                    className: 'muted',
+                    text: 'Supervised automation is enabled, but approved local commits are disabled while dry-run remains on.'
+                }));
+            }
+        }
+
+        async function loadHealth() {
+            const badge = $('healthBadge');
+            try {
+                health = await apiCall('/api/health', { auth: false });
+                badge.className = 'badge ok';
+                badge.textContent = 'Healthy · v' + health.version;
+                badge.title = 'Migrations: ' + (health.database.migrations || []).join(', ');
+                $('dryRunBadge').classList.toggle('hidden', !health.dry_run);
+                const repoBadge = $('repoCountBadge');
+                repoBadge.classList.remove('hidden');
+                repoBadge.textContent = health.allowlisted_repos + ' repo(s) allowlisted';
+                const aiBadge = $('aiBadge');
+                if (health.ai) {
+                    aiBadge.classList.remove('hidden');
+                    aiBadge.className = 'badge ' + (health.ai.ready ? 'ok' : 'warn');
+                    aiBadge.textContent = health.ai.ready ? 'AI toolchain ready' : 'AI blocked';
+                    aiBadge.title = health.ai.note || '';
+                }
+                const schedulerBadge = $('schedulerBadge');
+                if (health.scheduler) {
+                    schedulerBadge.classList.remove('hidden');
+                    schedulerBadge.className = 'badge ' + (health.scheduler.enabled ? 'ok' : 'muted');
+                    schedulerBadge.textContent = health.scheduler.enabled
+                        ? 'scheduler on · ' + health.scheduler.interval_seconds + 's'
+                        : 'scheduler off';
+                    schedulerBadge.title = health.scheduler.next_scheduled_at
+                        ? 'Next scheduled task: ' + formatTime(health.scheduler.next_scheduled_at)
+                        : 'No task has a scheduled time.';
+                }
+                const banner = $('dryRunBanner');
+                if (health.dry_run) {
+                    banner.classList.remove('hidden');
+                    banner.replaceChildren();
+                    if (health.supervised_automation_enabled && health.allow_approved_local_commits) {
+                        banner.appendChild(document.createTextNode(
+                            'Dry-run is enabled globally. Supervised automation and approved local commits are enabled: sandboxed write tasks may run to awaiting review, and only explicitly approved commits may be applied locally. No automatic commit or push.'
+                        ));
+                    } else if (health.supervised_automation_enabled) {
+                        banner.appendChild(document.createTextNode(
+                            'Dry-run is enabled globally. Supervised automation is enabled: sandboxed write tasks may run to awaiting review, but local commits remain blocked until approved local commits are explicitly enabled.'
+                        ));
+                    } else {
+                        banner.appendChild(document.createTextNode(
+                            'Dry-run is enabled. Read-only Analyze and Explain tasks still run inside the sandbox, but code-change tasks and local commits are refused until supervised automation is enabled or '
+                        ));
+                        banner.appendChild(node('span', { className: 'mono', text: 'GITBOT_DRY_RUN=false' }));
+                        banner.appendChild(document.createTextNode(' is set and the server is restarted.'));
+                    }
+                } else {
+                    banner.classList.add('hidden');
+                    banner.replaceChildren();
+                }
+                renderSystemStatus();
+            } catch (error) {
+                health = null;
+                badge.className = 'badge danger';
+                badge.textContent = 'Unreachable';
+                badge.title = error.message;
+                renderSystemStatus();
+            }
+            syncCreateRunControl();
+        }
+
+        // ------------------------------------------------------------- connection
+
+        async function connect() {
+            const input = $('apiToken');
+            const candidate = input.value.trim();
+            if (!candidate) {
+                message($('connectionMsg'), 'Enter the API token first.', 'error');
+                return;
+            }
+            token = candidate;
+            input.value = '';
+            try {
+                await apiCall('/api/auth/check');
+                message($('connectionMsg'), 'Connected. Mutating actions are now available.', 'success');
+            } catch (error) {
+                token = '';
+                syncCreateRunControl();
+                message($('connectionMsg'), 'Connection failed: ' + error.message, 'error');
+                return;
+            }
+            syncCreateRunControl();
+            await refreshAll();
+        }
+
+        function disconnect() {
+            token = '';
+            $('apiToken').value = '';
+            message($('connectionMsg'), 'Disconnected. Connect a token to view repositories, tasks, and approvals.', 'info');
+            currentTask = null;
+            $('taskDetailSection').classList.add('hidden');
+            syncCreateRunControl();
+            refreshAll();
+        }
+
+        // -------------------------------------------------------------- repositories
+
+        async function loadRepos(options) {
+            const opts = options || {};
+            const list = $('reposList');
+            if (!opts.quiet) {
+                list.replaceChildren(node('div', { className: 'empty', text: 'Loading repositories…' }));
+            }
+            try {
+                const data = await apiCall('/api/repos', { auth: true });
+                repos = data.repos || [];
+                renderRepos();
+                populateRepoSelect();
+                if (health) {
+                    $('repoCountBadge').textContent = repos.length + ' repo(s) allowlisted';
+                }
+                renderSystemStatus();
+            } catch (error) {
+                if (isTokenRequired(error)) {
+                    repos = [];
+                    list.replaceChildren();
+                    message(list, tokenHint('view allowlisted repositories'), 'info');
+                    populateRepoSelect();
+                    renderSystemStatus();
+                    return;
+                }
+                if (!opts.quiet) {
+                    repos = [];
+                    list.replaceChildren();
+                    message(list, 'Could not load repositories: ' + error.message, 'error');
+                    populateRepoSelect();
+                }
+                // A failed background refresh leaves the last known allowlist
+                // intact rather than making the create form look empty.
+            }
+        }
+
+        function renderRepos() {
+            const list = $('reposList');
+            list.replaceChildren();
+            if (repos.length === 0) {
+                list.appendChild(node('div', {
+                    className: 'empty',
+                    text: 'No repositories are allowlisted yet. Add one below.'
+                }));
+                return;
+            }
+            repos.forEach((repo) => {
+                const item = node('div', { className: 'repo-item' });
+                const head = node('div', { className: 'spread' });
+                const info = node('div', {});
+                info.appendChild(node('strong', { text: repo.slug }));
+                info.appendChild(node('div', { className: 'path mono', text: repo.path }));
+                const badges = node('div', { className: 'row', style: 'margin-top:0.35rem;' });
+                badges.appendChild(node('span', {
+                    className: 'badge ' + (repo.allow_commit ? 'ok' : 'muted'),
+                    text: repo.allow_commit ? 'commit allowed' : 'read-only'
+                }));
+                badges.appendChild(node('span', { className: 'badge muted', text: 'branch: ' + repo.default_branch }));
+                const allowed = repo.allowed_task_types || TASK_TYPES.slice();
+                badges.appendChild(node('span', {
+                    className: 'badge muted',
+                    text: 'tasks: ' + (allowed.length ? allowed.join(', ') : 'none')
+                }));
+                if (repo.test_command) {
+                    badges.appendChild(node('span', { className: 'badge muted', text: 'tests configured' }));
+                }
+                info.appendChild(badges);
+
+                const actions = node('div', { className: 'row' });
+                const statusBtn = node('button', {
+                    className: 'secondary small',
+                    type: 'button',
+                    text: 'Status',
+                    onClick: () => toggleRepoStatus(repo.id, item)
+                });
+                const policyBtn = node('button', {
+                    className: 'secondary small',
+                    type: 'button',
+                    text: 'Policy',
+                    onClick: () => toggleRepoPolicy(repo, item)
+                });
+                const commitToggle = node('input', { type: 'checkbox', checked: repo.allow_commit });
+                commitToggle.setAttribute('aria-label', 'Allow local commits for ' + repo.slug);
+                commitToggle.addEventListener('change', () => updateRepoCommit(repo.id, commitToggle.checked, commitToggle));
+                const commitLabel = node('label', { className: 'checkline', text: 'Allow commit' });
+                commitLabel.prepend(commitToggle);
+                const removeBtn = node('button', {
+                    className: 'danger small',
+                    type: 'button',
+                    text: 'Remove',
+                    onClick: () => removeRepo(repo)
+                });
+                actions.appendChild(statusBtn);
+                actions.appendChild(policyBtn);
+                actions.appendChild(commitLabel);
+                actions.appendChild(removeBtn);
+                head.appendChild(info);
+                head.appendChild(actions);
+                item.appendChild(head);
+                list.appendChild(item);
+            });
+        }
+
+        function taskTypeChecks(selected) {
+            const wrap = node('div', { className: 'row' });
+            const boxes = [];
+            TASK_TYPES.forEach((type) => {
+                const box = node('input', { type: 'checkbox', checked: selected.includes(type) });
+                box.value = type;
+                const label = node('label', { className: 'checkline', text: TASK_TYPE_LABELS[type] });
+                label.prepend(box);
+                label.setAttribute('style', 'margin: 0;');
+                wrap.appendChild(label);
+                boxes.push(box);
+            });
+            return { wrap: wrap, boxes: boxes };
+        }
+
+        function populateRepoTypeChoices() {
+            const container = $('repoTaskTypes');
+            if (!container) return;
+            container.replaceChildren();
+            const checks = taskTypeChecks(TASK_TYPES.slice());
+            repoTypeBoxes = checks.boxes;
+            container.appendChild(checks.wrap);
+        }
+
+        function selectedRepoTypes() {
+            return repoTypeBoxes.filter((box) => box.checked).map((box) => box.value);
+        }
+
+        function toggleRepoPolicy(repo, item) {
+            const existing = item.querySelector('.repo-policy');
+            if (existing) {
+                existing.remove();
+                return;
+            }
+            const panel = node('div', { className: 'repo-status repo-policy' });
+            panel.appendChild(node('div', { className: 'k', text: 'Allowed task types' }));
+            const allowed = repo.allowed_task_types || TASK_TYPES.slice();
+            const checks = taskTypeChecks(allowed);
+            panel.appendChild(checks.wrap);
+
+            const commandLabel = node('label', { text: 'Test command (optional)' });
+            commandLabel.setAttribute('style', 'margin-top: 0.55rem;');
+            const commandInput = node('input', { value: repo.test_command || '' });
+            commandInput.placeholder = 'uv run pytest -q';
+            panel.appendChild(commandLabel);
+            panel.appendChild(commandInput);
+
+            const save = node('button', {
+                className: 'success small',
+                type: 'button',
+                text: 'Save policy'
+            });
+            save.setAttribute('style', 'margin-top: 0.55rem;');
+            save.addEventListener('click', async () => {
+                const types = checks.boxes.filter((box) => box.checked).map((box) => box.value);
+                if (types.length === 0) {
+                    message($('repoMsg'), 'Select at least one task type.', 'error');
+                    return;
+                }
+                const command = commandInput.value.trim();
+                save.disabled = true;
+                try {
+                    await apiCall('/api/repos/' + repo.id, {
+                        method: 'PATCH',
+                        body: {
+                            allowed_task_types: types,
+                            test_command: command || null
+                        }
+                    });
+                    message($('repoMsg'), 'Repository policy updated.', 'success');
+                    await loadRepos({ quiet: true });
+                } catch (error) {
+                    save.disabled = false;
+                    message($('repoMsg'), 'Policy update failed: ' + error.message, 'error');
+                }
+            });
+            panel.appendChild(save);
+            item.appendChild(panel);
+        }
+
+        async function toggleRepoStatus(repoId, item) {
+            const existing = item.querySelector('.repo-live-status');
+            if (existing) {
+                existing.remove();
+                return;
+            }
+            const panel = node('div', {
+                className: 'repo-status repo-live-status',
+                text: 'Loading status…'
+            });
+            item.appendChild(panel);
+            try {
+                const data = await apiCall('/api/repos/' + repoId + '/git/status', { auth: true });
+                const status = data.status || {};
+                const lines = [
+                    'branch: ' + (status.branch || '—'),
+                    'head: ' + shortId(status.head, 12),
+                    'upstream: ' + (status.upstream || '—'),
+                    'ahead/behind: ' + (status.ahead || 0) + '/' + (status.behind || 0),
+                    'clean: ' + (status.clean ? 'yes' : 'no')
+                ];
+                if (status.changed_files && status.changed_files.length) {
+                    lines.push('changed files:');
+                    status.changed_files.forEach((file) => lines.push('  ' + file));
+                }
+                panel.textContent = lines.join('\n');
+            } catch (error) {
+                if (isTokenRequired(error)) {
+                    panel.textContent = tokenHint('read repository status');
+                    return;
+                }
+                panel.textContent = 'Status failed: ' + error.message;
+            }
+        }
+
+        async function updateRepoCommit(repoId, allow, checkbox) {
+            if (!token) {
+                message($('repoMsg'), 'Connect with your API token to change repository permissions.', 'error');
+                checkbox.checked = !allow;
+                return;
+            }
+            try {
+                await apiCall('/api/repos/' + repoId, {
+                    method: 'PATCH',
+                    body: { allow_commit: allow }
+                });
+                message($('repoMsg'), 'Repository updated.', 'success');
+                await loadRepos({ quiet: true });
+                if (currentTask && currentTask.id) viewTask(currentTask.id, { quiet: true });
+            } catch (error) {
+                checkbox.checked = !allow;
+                message($('repoMsg'), 'Update failed: ' + error.message, 'error');
+            }
+        }
+
+        async function addRepo() {
+            const path = $('repoPath').value.trim();
+            const slug = $('repoSlug').value.trim();
+            const branch = $('repoBranch').value.trim() || 'main';
+            const allowCommit = $('repoAllowCommit').checked;
+            const allowedTypes = selectedRepoTypes();
+            const testCommand = $('repoTestCommand').value.trim();
+            if (!path) {
+                message($('repoMsg'), 'Enter the absolute repository path.', 'error');
+                return;
+            }
+            if (allowedTypes.length === 0) {
+                message($('repoMsg'), 'Select at least one allowed task type.', 'error');
+                return;
+            }
+            const payload = {
+                path: path,
+                default_branch: branch,
+                allow_commit: allowCommit,
+                allowed_task_types: allowedTypes
+            };
+            if (slug) payload.slug = slug;
+            if (testCommand) payload.test_command = testCommand;
+            try {
+                await apiCall('/api/repos', { method: 'POST', body: payload });
+                message($('repoMsg'), 'Repository allowlisted.', 'success');
+                $('repoPath').value = '';
+                $('repoSlug').value = '';
+                $('repoAllowCommit').checked = false;
+                $('repoTestCommand').value = '';
+                await loadRepos({ quiet: true });
+            } catch (error) {
+                message($('repoMsg'), 'Could not add repository: ' + error.message, 'error');
+            }
+        }
+
+        async function removeRepo(repo) {
+            if (!confirm('Remove "' + repo.slug + '" from the allowlist? Repositories with task history cannot be removed.')) return;
+            try {
+                await apiCall('/api/repos/' + repo.id, { method: 'DELETE' });
+                message($('repoMsg'), 'Repository removed from the allowlist.', 'success');
+                await loadRepos({ quiet: true });
+                if (currentTask && currentTask.id) viewTask(currentTask.id, { quiet: true });
+            } catch (error) {
+                message($('repoMsg'), 'Could not remove repository: ' + error.message, 'error');
+            }
+        }
+
+        function populateRepoSelect() {
+            const select = $('repoSelect');
+            const schedSelect = $('scheduleRepoSelect');
+            const previous = select ? select.value : '';
+            const schedPrev = schedSelect ? schedSelect.value : '';
+            if (select) clear(select);
+            if (schedSelect) clear(schedSelect);
+            if (repos.length === 0) {
+                if (select) select.appendChild(node('option', { value: '', text: 'No allowlisted repositories' }));
+                if (schedSelect) schedSelect.appendChild(node('option', { value: '', text: 'No allowlisted repositories' }));
+                return;
+            }
+            repos.forEach((repo) => {
+                if (select) select.appendChild(node('option', { value: String(repo.id), text: repo.slug }));
+                if (schedSelect) schedSelect.appendChild(node('option', { value: String(repo.id), text: repo.slug }));
+            });
+            if (select && previous && repos.some((repo) => String(repo.id) === previous)) {
+                select.value = previous;
+            }
+            if (schedSelect && schedPrev && repos.some((repo) => String(repo.id) === schedPrev)) {
+                schedSelect.value = schedPrev;
+            }
+        }
+
+        // -------------------------------------------------------------- task create
+
+        async function createTask(runNow) {
+            if (taskCreateInFlight) {
+                return;
+            }
+            const container = $('createTaskMsg');
+            const repoId = parseInt($('repoSelect').value, 10);
+            const taskType = $('taskType').value;
+            const prompt = $('taskPrompt').value.trim();
+            if (!Number.isInteger(repoId)) {
+                message(container, 'Add and select a repository first.', 'error');
+                return;
+            }
+            if (!prompt) {
+                message(container, 'Enter a task description.', 'error');
+                return;
+            }
+            const scheduleInput = $('taskSchedule').value;
+            let scheduledAt = null;
+            if (scheduleInput) {
+                const parsed = new Date(scheduleInput);
+                if (Number.isNaN(parsed.getTime())) {
+                    message(container, 'The schedule time is not valid.', 'error');
+                    return;
+                }
+                scheduledAt = parsed.toISOString();
+            }
+            if (runNow && scheduledAt) {
+                message(container, 'Clear the schedule to run the task immediately.', 'error');
+                return;
+            }
+            const maxRetries = parseInt($('taskMaxRetries').value || '0', 10);
+            if (!Number.isInteger(maxRetries) || maxRetries < 0 || maxRetries > 5) {
+                message(container, 'Automatic retries must be an integer from 0 to 5.', 'error');
+                return;
+            }
+            if (runNow) {
+                const blocked = createRunBlockedReason(taskType);
+                if (blocked) {
+                    message(container, blocked, 'error');
+                    return;
+                }
+            }
+            if (
+                pendingCreatedTask &&
+                pendingCreatedTask.repoId === repoId &&
+                pendingCreatedTask.taskType === taskType &&
+                pendingCreatedTask.prompt === prompt
+            ) {
+                message(
+                    container,
+                    'Task ' + pendingCreatedTask.id + ' was already created, but its run failed. ' +
+                        'Open it with View to retry the run, or change the description to create a new task.',
+                    'error'
+                );
+                return;
+            }
+            pendingCreatedTask = null;
+
+            taskCreateInFlight = true;
+            setCreateBusy(true, runNow);
+            message(container, runNow ? 'Creating and running task…' : 'Creating task…', 'info');
+
+            try {
+                let task;
+                try {
+                    const created = await apiCall('/api/tasks', {
+                        method: 'POST',
+                        body: {
+                            repo_id: repoId,
+                            task_type: taskType,
+                            prompt: prompt,
+                            scheduled_at: scheduledAt,
+                            max_retries: maxRetries
+                        }
+                    });
+                    if (!created || !created.task || !created.task.id) {
+                        throw new ApiError(
+                            'The server returned an unexpected response.',
+                            0,
+                            'invalid_response'
+                        );
+                    }
+                    task = created.task;
+                    if (!runNow) {
+                        // Never clear the description automatically. The user
+                        // decides when to replace it for the next task.
+                        message(container, 'Task created: ' + task.id, 'success');
+                    }
+                } catch (error) {
+                    message(container, describeApiError(error, 'create'), 'error');
+                    return;
+                }
+
+                // Anything below this point happens after a successful creation.
+                // It must never be reported as a creation failure, and it must
+                // never cause the form to be cleared again.
+                if (runNow) {
+                    let text = 'Task created: ' + task.id;
+                    message(container, text + ' — running… this may take a while.', 'info');
+                    try {
+                        const ran = await apiCall('/api/tasks/' + task.id + '/run', { method: 'POST' });
+                        const state = ran && ran.task ? ran.task.state : 'unknown';
+                        text += ' — state: ' + state;
+                        if (state === 'failed') {
+                            pendingCreatedTask = {
+                                id: task.id,
+                                repoId: repoId,
+                                taskType: taskType,
+                                prompt: prompt
+                            };
+                            message(
+                                container,
+                                text + ' — the run failed. Your task description was kept. ' +
+                                    'Open the task with View to inspect it; creating an identical ' +
+                                    'task is blocked until you change the description.',
+                                'error'
+                            );
+                        } else {
+                            // Never clear the description automatically, even
+                            // after a successful run. The retained text makes
+                            // it explicit when the user wants another task.
+                            pendingCreatedTask = null;
+                            message(container, text, 'success');
+                        }
+                        await viewTask(task.id, { quiet: true });
+                    } catch (error) {
+                        pendingCreatedTask = {
+                            id: task.id,
+                            repoId: repoId,
+                            taskType: taskType,
+                            prompt: prompt
+                        };
+                        message(
+                            container,
+                            text + ' — run failed: ' + describeApiError(error, 'run') +
+                                ' Your task description was kept. Open the created task with ' +
+                                'View to retry the run; creating an identical task is blocked ' +
+                                'until you change the description.',
+                            'error'
+                        );
+                    }
+                }
+
+                try {
+                    await loadTasks({ quiet: true });
+                    await loadApprovals({ quiet: true });
+                } catch (error) {
+                    message(
+                        container,
+                        'Task created: ' + task.id + ', but the task list could not be refreshed: ' +
+                            describeApiError(error, 'run'),
+                        'error'
+                    );
+                }
+            } finally {
+                taskCreateInFlight = false;
+                setCreateBusy(false, runNow);
+            }
+        }
+
+        // ------------------------------------------------------------------- tasks
+
+        async function loadTasks(options) {
+            const opts = options || {};
+            const body = $('tasksBody');
+            if (!opts.quiet) {
+                body.replaceChildren(loadingRow(7, 'Loading tasks…'));
+            }
+            try {
+                const data = await apiCall('/api/tasks', { auth: true });
+                tasks = data.tasks || [];
+                if (!opts.quiet) message($('tasksMsg'), '');
+                renderTasks();
+                renderSystemStatus();
+            } catch (error) {
+                if (isTokenRequired(error)) {
+                    tasks = [];
+                    body.replaceChildren();
+                    message($('tasksMsg'), tokenHint('view task history and prompts'), 'info');
+                    renderSystemStatus();
+                    return;
+                }
+                message(
+                    $('tasksMsg'),
+                    (opts.quiet ? 'Could not refresh tasks: ' : 'Could not load tasks: ') + error.message,
+                    'error'
+                );
+                // A transient background poll must not erase the last usable
+                // task table; only a foreground load replaces it with an error.
+                if (!opts.quiet) body.replaceChildren();
+            }
+        }
+
+        function loadingRow(columns, text) {
+            const row = node('tr');
+            const cell = node('td', { className: 'empty', text: text });
+            cell.colSpan = columns;
+            row.appendChild(cell);
+            return row;
+        }
+
+        function renderTasks() {
+            const body = $('tasksBody');
+            const filter = $('stateFilter').value;
+            const visible = filter ? tasks.filter((task) => task.state === filter) : tasks;
+            body.replaceChildren();
+            if (visible.length === 0) {
+                body.appendChild(loadingRow(7, tasks.length === 0 ? 'No tasks yet. Create one above.' : 'No tasks match this filter.'));
+                return;
+            }
+            visible.forEach((task) => {
+                const row = node('tr');
+
+                const idCell = node('td', { className: 'mono' });
+                const idButton = node('button', {
+                    className: 'secondary small',
+                    type: 'button',
+                    text: shortId(task.id, 12),
+                    title: task.id,
+                    onClick: () => viewTask(task.id)
+                });
+                idCell.appendChild(idButton);
+
+                const repoCell = node('td', { text: repoLabel(task.repo_id) });
+                const typeCell = node('td', { text: task.task_type });
+                const descCell = node('td', {
+                    text: shortId(task.prompt || '', 60),
+                    title: task.prompt || ''
+                });
+                const stateCell = node('td', {});
+                stateCell.appendChild(statusBadge(task.state));
+                if (task.error_message) {
+                    stateCell.appendChild(node('div', {
+                        className: 'muted',
+                        text: shortId(task.error_message, 40),
+                        title: task.error_message
+                    }));
+                }
+                if (task.tests_status && task.tests_status !== 'not_run') {
+                    stateCell.appendChild(node('div', {
+                        className: 'muted',
+                        text: 'tests: ' + task.tests_status
+                    }));
+                }
+                const createdCell = node('td', { text: formatTime(task.created_at) });
+
+                const actionsCell = node('td');
+                const actions = node('div', { className: 'actions' });
+                actions.appendChild(node('button', {
+                    className: 'secondary small',
+                    type: 'button',
+                    text: 'View',
+                    onClick: () => viewTask(task.id)
+                }));
+                if (task.state === 'queued') {
+                    const dryRun = health ? health.dry_run : true;
+                    const readOnly = READ_ONLY_TASK_TYPES.has(task.task_type);
+                    const supervised = health ? Boolean(health.supervised_automation_enabled) : false;
+                    const blocked = dryRun && !readOnly && !supervised;
+                    actions.appendChild(node('button', {
+                        className: 'success small',
+                        type: 'button',
+                        text: 'Run',
+                        disabled: blocked,
+                        title: blocked
+                            ? 'dry-run is enabled; enable supervised automation or set GITBOT_DRY_RUN=false to run write tasks'
+                            : (readOnly
+                                ? 'Run this read-only task in the sandbox'
+                                : 'Run this task'),
+                        onClick: () => runTask(task.id)
+                    }));
+                    actions.appendChild(node('button', {
+                        className: 'danger small',
+                        type: 'button',
+                        text: 'Cancel',
+                        onClick: () => cancelTask(task.id)
+                    }));
+                } else if (task.state === 'failed') {
+                    const retryBudget = (task.max_retries || 0) - (task.retry_count || 0);
+                    actions.appendChild(node('button', {
+                        className: 'secondary small',
+                        type: 'button',
+                        text: 'Retry',
+                        disabled: retryBudget <= 0,
+                        title: retryBudget > 0
+                            ? 'Create a new task from this failed one (' + retryBudget + ' retry left)'
+                            : 'Retry budget exhausted for this task',
+                        onClick: () => retryTask(task.id)
+                    }));
+                } else if (task.state === 'awaiting_review') {
+                    actions.appendChild(node('button', {
+                        className: 'success small',
+                        type: 'button',
+                        text: 'Review',
+                        onClick: () => viewTask(task.id)
+                    }));
+                    actions.appendChild(node('button', {
+                        className: 'danger small',
+                        type: 'button',
+                        text: 'Cancel',
+                        onClick: () => cancelTask(task.id)
+                    }));
+                } else if (task.state === 'running') {
+                    actions.appendChild(node('button', {
+                        className: 'danger small',
+                        type: 'button',
+                        text: 'Cancel',
+                        onClick: () => cancelTask(task.id)
+                    }));
+                } else if (task.state === 'approved') {
+                    actions.appendChild(node('button', {
+                        className: 'success small',
+                        type: 'button',
+                        text: 'Commit…',
+                        title: 'Open the approved task and commit it locally',
+                        onClick: () => viewTask(task.id)
+                    }));
+                    actions.appendChild(node('button', {
+                        className: 'danger small',
+                        type: 'button',
+                        text: 'Cancel',
+                        title: 'Cancel this task and revoke its unused approval',
+                        onClick: () => cancelTask(task.id)
+                    }));
+                }
+                actionsCell.appendChild(actions);
+
+                [idCell, repoCell, typeCell, descCell, stateCell, createdCell, actionsCell].forEach((cell) => row.appendChild(cell));
+                body.appendChild(row);
+            });
+        }
+
+        async function runTask(taskId) {
+            message($('tasksMsg'), 'Running task… this may take a while.', 'info');
+            try {
+                const data = await apiCall('/api/tasks/' + taskId + '/run', { method: 'POST' });
+                message($('tasksMsg'), 'Task finished with state: ' + data.task.state, data.task.state === 'failed' ? 'error' : 'success');
+            } catch (error) {
+                message($('tasksMsg'), 'Run failed: ' + error.message, 'error');
+            }
+            await loadTasks({ quiet: true });
+            await loadApprovals({ quiet: true });
+            if (currentTask && currentTask.id === taskId) await viewTask(taskId, { quiet: true });
+        }
+
+        async function cancelTask(taskId) {
+            if (!confirm('Cancel this task?')) return;
+            try {
+                const data = await apiCall('/api/tasks/' + taskId + '/cancel', { method: 'POST' });
+                message($('tasksMsg'), 'Task state: ' + data.task.state, 'success');
+            } catch (error) {
+                message($('tasksMsg'), 'Cancel failed: ' + error.message, 'error');
+            }
+            await loadTasks({ quiet: true });
+            await loadApprovals({ quiet: true });
+            if (currentTask && currentTask.id === taskId) await viewTask(taskId, { quiet: true });
+        }
+
+        async function retryTask(taskId) {
+            if (!confirm('Create a fresh task from this failed task? It stays queued until you run it or its schedule is due.')) return;
+            try {
+                const data = await apiCall('/api/tasks/' + taskId + '/retry', { method: 'POST' });
+                message($('tasksMsg'), 'Retry task created: ' + data.task.id, 'success');
+            } catch (error) {
+                message($('tasksMsg'), 'Retry failed: ' + error.message, 'error');
+            }
+            await loadTasks({ quiet: true });
+            await loadApprovals({ quiet: true });
+        }
+
+        async function tickScheduler() {
+            const button = $('schedulerTickBtn');
+            if (button) button.disabled = true;
+            message($('tasksMsg'), 'Running due tasks…', 'info');
+            try {
+                const data = await apiCall('/api/tasks/scheduler/tick', { method: 'POST' });
+                const result = data.scheduler || {};
+                const results = Array.isArray(result.results) ? result.results : [];
+                const failed = results.filter((item) => item.status === 'failed').length;
+                const skippedCount = results.filter((item) => item.status === 'skipped').length;
+                const lockSkipped = result.skipped ? ' ' + result.skipped + '.' : '';
+                const parts = [results.length + ' due task(s) processed'];
+                if (failed) parts.push(failed + ' failed');
+                if (skippedCount) parts.push(skippedCount + ' skipped');
+                message(
+                    $('tasksMsg'),
+                    'Scheduler tick: ' + parts.join(', ') + '.' + lockSkipped,
+                    failed ? 'error' : (result.skipped || skippedCount ? 'info' : 'success')
+                );
+            } catch (error) {
+                message($('tasksMsg'), 'Scheduler tick failed: ' + error.message, 'error');
+            } finally {
+                if (button) button.disabled = false;
+                syncCreateRunControl();
+            }
+            await loadHealth();
+            await loadTasks({ quiet: true });
+            await loadApprovals({ quiet: true });
+        }
+
+        // -------------------------------------------------------------- task detail
+
+        async function viewTask(taskId, options) {
+            const opts = options || {};
+            const container = $('taskDetail');
+            if (!opts.quiet) {
+                $('taskDetailMsg').replaceChildren();
+                container.replaceChildren(node('div', { className: 'empty', text: 'Loading task…' }));
+            }
+            try {
+                const data = await apiCall('/api/tasks/' + taskId, { auth: true });
+                currentTask = data.task;
+                renderTaskDetail(data);
+                $('taskDetailSection').classList.remove('hidden');
+                if (!opts.quiet) {
+                    $('taskDetailSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            } catch (error) {
+                if (isTokenRequired(error)) {
+                    container.replaceChildren();
+                    message(container, tokenHint('view task prompts, output, and diffs'), 'info');
+                    $('taskDetailSection').classList.remove('hidden');
+                    return;
+                }
+                if (opts.quiet) {
+                    message($('taskDetailMsg'), 'Could not refresh task: ' + error.message, 'error');
+                } else {
+                    container.replaceChildren();
+                    message(container, 'Could not load task: ' + error.message, 'error');
+                }
+                $('taskDetailSection').classList.remove('hidden');
             }
         }
 
         function closeTaskDetail() {
-            document.getElementById('taskDetailSection').classList.add('hidden');
+            currentTask = null;
+            $('taskDetailSection').classList.add('hidden');
+            $('taskDetail').replaceChildren();
+            $('taskDetailMsg').replaceChildren();
         }
 
-        async function runTask(taskId) {
-            try {
-                await apiCall(`/api/tasks/${taskId}/run`, { method: 'POST' });
-                alert('Task started');
-                loadTasks();
-                loadApprovals();
-            } catch (e) {
-                alert('Error: ' + e.message);
+        function metaItem(label, value, mono) {
+            const wrap = node('div');
+            wrap.appendChild(node('div', { className: 'k', text: label }));
+            wrap.appendChild(node('div', {
+                className: 'v' + (mono ? ' mono' : ''),
+                text: value === null || value === undefined || value === '' ? '—' : String(value)
+            }));
+            return wrap;
+        }
+
+        function renderTaskDetail(data) {
+            const task = data.task;
+            const container = $('taskDetail');
+            container.replaceChildren();
+            $('taskDetailSubtitle').textContent = task.id + ' · ' + repoLabel(task.repo_id) + ' · ' + task.task_type;
+
+            const header = node('div', { className: 'row' });
+            header.appendChild(statusBadge(task.state));
+            header.appendChild(node('span', { className: 'badge muted', text: repoLabel(task.repo_id) }));
+            if (task.branch_name) header.appendChild(node('span', { className: 'badge muted mono', text: task.branch_name }));
+            if (task.sandboxed) header.appendChild(node('span', { className: 'badge muted', text: 'sandboxed' }));
+            if (task.output_truncated) header.appendChild(node('span', { className: 'badge warn', text: 'AI response truncated' }));
+            if (task.diff_truncated) header.appendChild(node('span', { className: 'badge warn', text: 'diff truncated' }));
+            if (task.tests_status && task.tests_status !== 'not_run') {
+                const testsClass = task.tests_status === 'passed'
+                    ? 'ok'
+                    : (task.tests_status === 'failed' || task.tests_status === 'error' ? 'danger' : 'muted');
+                header.appendChild(node('span', {
+                    className: 'badge ' + testsClass,
+                    text: 'tests: ' + task.tests_status
+                }));
             }
+            container.appendChild(header);
+
+            const meta = node('div', { className: 'meta-grid' });
+            meta.appendChild(metaItem('Created', formatTime(task.created_at)));
+            meta.appendChild(metaItem('Updated', formatTime(task.updated_at)));
+            meta.appendChild(metaItem('Started', formatTime(task.started_at)));
+            meta.appendChild(metaItem('Finished', formatTime(task.finished_at)));
+            meta.appendChild(metaItem('Session', task.session_id, true));
+            meta.appendChild(metaItem('Diff hash', task.diff_hash || '—', true));
+            if (task.snapshot_head) meta.appendChild(metaItem('Snapshot HEAD', task.snapshot_head, true));
+            if (task.scheduled_at) meta.appendChild(metaItem('Scheduled', formatTime(task.scheduled_at)));
+            if ((task.max_retries || 0) > 0 || (task.retry_count || 0) > 0) {
+                meta.appendChild(metaItem(
+                    'Retries',
+                    (task.retry_count || 0) + ' used / ' + (task.max_retries || 0) + ' allowed'
+                ));
+            }
+            if (task.parent_task_id) meta.appendChild(metaItem('Retried from', task.parent_task_id, true));
+            if (task.test_exit_code !== null && task.test_exit_code !== undefined) {
+                meta.appendChild(metaItem('Test exit code', task.test_exit_code));
+            }
+            container.appendChild(meta);
+
+            const promptBlock = node('div', { className: 'detail-block' });
+            promptBlock.appendChild(node('h3', { text: 'Prompt' }));
+            promptBlock.appendChild(node('pre', { className: 'block', text: task.prompt || '—' }));
+            container.appendChild(promptBlock);
+
+            if (task.error_message) {
+                const errBlock = node('div', { className: 'detail-block' });
+                errBlock.appendChild(node('h3', { text: 'Error' }));
+                errBlock.appendChild(node('pre', { className: 'block', text: task.error_message }));
+                container.appendChild(errBlock);
+            }
+
+            const outputBlock = node('div', { className: 'detail-block' });
+            outputBlock.appendChild(node('h3', { text: 'AI response' }));
+            if (task.output) {
+                outputBlock.appendChild(node('pre', { className: 'block', text: task.output }));
+                if (task.output_truncated) {
+                    outputBlock.appendChild(node('p', {
+                        className: 'muted',
+                        text: 'The stored response was truncated at the safety limit.'
+                    }));
+                }
+            } else {
+                outputBlock.appendChild(node('p', { className: 'empty', text: 'No AI response recorded for this task.' }));
+            }
+            container.appendChild(outputBlock);
+
+            if (task.tests_status && task.tests_status !== 'not_run') {
+                const testsBlock = node('div', { className: 'detail-block' });
+                testsBlock.appendChild(node('h3', { text: 'Sandboxed test run' }));
+                const summary = [];
+                summary.push('status: ' + task.tests_status);
+                if (task.test_exit_code !== null && task.test_exit_code !== undefined) {
+                    summary.push('exit code: ' + task.test_exit_code);
+                }
+                if (task.tests_command) summary.push('command: ' + task.tests_command);
+                testsBlock.appendChild(node('p', { className: 'muted', text: summary.join(' · ') }));
+                if (task.tests_output) {
+                    testsBlock.appendChild(node('pre', { className: 'block', text: task.tests_output }));
+                    if (task.tests_output_truncated) {
+                        testsBlock.appendChild(node('p', {
+                            className: 'muted',
+                            text: 'The stored test output was truncated at the safety limit.'
+                        }));
+                    }
+                } else {
+                    testsBlock.appendChild(node('p', { className: 'empty', text: 'No test output was captured.' }));
+                }
+                testsBlock.appendChild(node('p', {
+                    className: 'muted',
+                    text: 'Tests run only inside the disposable sandbox. Failed or errored tests block commit.'
+                }));
+                container.appendChild(testsBlock);
+            }
+
+            if (task.state === 'analyzed' || task.state === 'explained') {
+                const analysisBlock = node('div', { className: 'detail-block' });
+                analysisBlock.appendChild(node('h3', { text: 'Repository changes' }));
+                analysisBlock.appendChild(node('p', {
+                    className: 'empty',
+                    text: 'None. This read-only task ran on a disposable snapshot, so there ' +
+                        'is no diff to approve and nothing to commit.'
+                }));
+                container.appendChild(analysisBlock);
+            } else {
+                const diffBlock = node('div', { className: 'detail-block' });
+                diffBlock.appendChild(node('h3', { text: 'Reviewed diff' }));
+                renderDiff(diffBlock, data.diff);
+                container.appendChild(diffBlock);
+            }
+
+            renderTaskActions(container, task, data);
+
+            const eventsBlock = node('div', { className: 'detail-block' });
+            eventsBlock.appendChild(node('h3', { text: 'History' }));
+            if (data.events && data.events.length) {
+                const list = node('ul', { className: 'timeline' });
+                data.events.forEach((event) => {
+                    const item = node('li');
+                    item.appendChild(node('span', { className: 'when', text: formatTime(event.created_at) }));
+                    item.appendChild(node('span', { text: event.event_type || 'event' }));
+                    item.appendChild(node('span', { className: 'muted', text: ' · ' + (event.actor || 'system') }));
+                    const detail = event.detail || {};
+                    const text = typeof detail === 'string' ? detail : JSON.stringify(detail);
+                    if (text && text !== '{}') {
+                        item.appendChild(node('div', { className: 'detail', text: text }));
+                    }
+                    list.appendChild(item);
+                });
+                eventsBlock.appendChild(list);
+            } else {
+                eventsBlock.appendChild(node('p', { className: 'empty', text: 'No events recorded.' }));
+            }
+            container.appendChild(eventsBlock);
         }
 
-        async function loadApprovals() {
-            const msg = document.getElementById('approvalsMsg');
-            msg.innerHTML = '';
+        function renderDiff(container, diff) {
+            if (!diff) {
+                container.appendChild(node('p', {
+                    className: 'empty',
+                    text: 'No diff has been recorded yet. Diffs are captured when a task finishes running.'
+                }));
+                return;
+            }
+            const wrap = node('div', { className: 'diff-wrap' });
+            const head = node('div', { className: 'diff-head' });
+            const files = diff.files || [];
+            head.appendChild(node('div', {
+                text: files.length ? files.length + ' changed file(s)' : 'No tracked changes in this diff'
+            }));
+            if (files.length) {
+                const chips = node('div', { className: 'diff-files' });
+                files.forEach((file) => chips.appendChild(node('span', { className: 'badge muted', text: file })));
+                head.appendChild(chips);
+            }
+            wrap.appendChild(head);
+
+            const patch = diff.patch || '';
+            if (!patch) {
+                wrap.appendChild(node('div', { className: 'empty', text: 'The patch is empty.' }));
+                container.appendChild(wrap);
+                return;
+            }
+            const pre = node('div', { className: 'diff' });
+            const lines = patch.split('\n');
+            const limit = Math.min(lines.length, DIFF_RENDER_LIMIT);
+            const fragment = document.createDocumentFragment();
+            for (let index = 0; index < limit; index += 1) {
+                const line = lines[index];
+                let className = 'diff-line';
+                if (
+                    line.startsWith('diff --git ') ||
+                    line.startsWith('--- ') ||
+                    line.startsWith('+++ ')
+                ) {
+                    className += ' file';
+                } else if (line.startsWith('@@')) {
+                    className += ' hunk';
+                } else if (line.startsWith('+')) {
+                    className += ' add';
+                } else if (line.startsWith('-')) {
+                    className += ' del';
+                }
+                fragment.appendChild(node('span', { className: className, text: line === '' ? ' ' : line }));
+            }
+            pre.appendChild(fragment);
+            wrap.appendChild(pre);
+            if (lines.length > limit) {
+                wrap.appendChild(node('div', {
+                    className: 'empty',
+                    text: 'Diff display truncated at ' + limit + ' lines. The full patch is stored on the server.'
+                }));
+            }
+            container.appendChild(wrap);
+        }
+
+        function renderTaskActions(container, task, data) {
+            const panel = node('div', { className: 'detail-block' });
+            const hasApproval = task.approval_id && task.approval_id !== '';
+
+            if (task.state === 'awaiting_review' && hasApproval) {
+                const review = node('div', { className: 'review-panel' });
+                review.appendChild(node('h3', { text: 'Approve this exact diff' }));
+                review.appendChild(node('p', {
+                    className: 'muted',
+                    text: 'The server checks the stored diff hash and the repository branch, HEAD, and working tree. If anything changed, approval is refused.'
+                }));
+                const hashLine = node('p');
+                hashLine.appendChild(node('span', { className: 'muted', text: 'Diff hash: ' }));
+                hashLine.appendChild(node('span', { className: 'hash', text: task.diff_hash || '—' }));
+                review.appendChild(hashLine);
+                if (task.tests_status === 'failed' || task.tests_status === 'error') {
+                    review.appendChild(node('p', {
+                        className: 'muted',
+                        text: 'The sandboxed test command did not pass, so approval and commit are blocked. Re-run the task after fixing the change.'
+                    }));
+                }
+
+                const confirmLabel = node('label', { className: 'checkline' });
+                const confirmBox = node('input', { type: 'checkbox' });
+                confirmLabel.appendChild(confirmBox);
+                confirmLabel.appendChild(document.createTextNode(' I have reviewed the diff above and want to approve it.'));
+                review.appendChild(confirmLabel);
+
+                const row = node('div', { className: 'row', style: 'margin-top:0.65rem;' });
+                const approveBtn = node('button', {
+                    className: 'success',
+                    type: 'button',
+                    text: 'Approve diff',
+                    disabled: true
+                });
+                confirmBox.addEventListener('change', () => {
+                    approveBtn.disabled = !confirmBox.checked || !token;
+                });
+                if (!token) approveBtn.title = 'Connect with your API token to approve.';
+                approveBtn.addEventListener('click', () => approveApproval(task.approval_id, task.diff_hash));
+                const rejectBtn = node('button', {
+                    className: 'danger',
+                    type: 'button',
+                    text: 'Reject',
+                    onClick: () => rejectApproval(task.approval_id)
+                });
+                row.appendChild(approveBtn);
+                row.appendChild(rejectBtn);
+                review.appendChild(row);
+                panel.appendChild(review);
+            }
+
+            if (task.state === 'approved') {
+                const repo = repoFor(task.repo_id);
+                const commitPanel = node('div', { className: 'review-panel' });
+                commitPanel.appendChild(node('h3', { text: 'Commit locally' }));
+                const commitAllowedByMode = health && (
+                    !health.dry_run ||
+                    (health.supervised_automation_enabled && health.allow_approved_local_commits)
+                );
+                if (!repo || !repo.allow_commit) {
+                    commitPanel.appendChild(node('p', {
+                        className: 'muted',
+                        text: 'Local commits are disabled for this repository. Enable "Allow commit" under Repositories first.'
+                    }));
+                } else if (!health) {
+                    commitPanel.appendChild(node('p', {
+                        className: 'muted',
+                        text: 'Server status is unavailable; commit controls are disabled until health is known.'
+                    }));
+                } else if (!commitAllowedByMode) {
+                    commitPanel.appendChild(node('p', {
+                        className: 'muted',
+                        text: 'Local commits are blocked by the current safety mode. Keep dry-run enabled unless you explicitly enable both supervised automation and approved local commits, or disable dry-run for manual supervised commits.'
+                    }));
+                } else if (task.tests_status === 'failed' || task.tests_status === 'error') {
+                    commitPanel.appendChild(node('p', {
+                        className: 'muted',
+                        text: 'The sandboxed test command did not pass, so commit is blocked. Re-run the task after fixing the change.'
+                    }));
+                } else if (task.diff_truncated) {
+                    commitPanel.appendChild(node('p', {
+                        className: 'muted',
+                        text: 'The reviewed diff was truncated, so commit is blocked. Re-run the task with a smaller change.'
+                    }));
+                } else {
+                    commitPanel.appendChild(node('p', {
+                        className: 'muted',
+                        text: 'A local commit will be created on the current branch (' +
+                            (task.branch_name || 'detached HEAD') + '). Nothing is pushed.'
+                    }));
+                    if (health.dry_run) {
+                        commitPanel.appendChild(node('p', {
+                            className: 'muted',
+                            text: 'Warning: dry-run remains enabled globally; this approved commit is allowed only because supervised automation and approved local commits are explicitly enabled.'
+                        }));
+                    }
+                    if (task.tests_status !== 'passed') {
+                        commitPanel.appendChild(node('p', {
+                            className: 'muted',
+                            text: 'No sandboxed test command passed for this task. Review the diff carefully before committing.'
+                        }));
+                    }
+                    const commitBtn = node('button', {
+                        className: 'success',
+                        type: 'button',
+                        text: 'Approve & commit locally',
+                        disabled: !token,
+                        title: token
+                            ? 'Apply the reviewed patch and create one local commit'
+                            : 'Connect with your API token to commit.',
+                        onClick: () => commitTask(task.id)
+                    });
+                    commitPanel.appendChild(commitBtn);
+                }
+                commitPanel.appendChild(node('button', {
+                    className: 'danger',
+                    type: 'button',
+                    text: 'Cancel approval',
+                    title: 'Cancel the task and revoke the unused approval',
+                    onClick: () => cancelTask(task.id)
+                }));
+                panel.appendChild(commitPanel);
+            }
+
+            if (task.state === 'committed') {
+                const committed = node('div', { className: 'message success' });
+                committed.textContent = 'Committed locally. No push or pull request was performed.';
+                panel.appendChild(committed);
+            }
+
+            if (task.state === 'failed') {
+                const retryBudget = (task.max_retries || 0) - (task.retry_count || 0);
+                const retryPanel = node('div', { className: 'review-panel' });
+                retryPanel.appendChild(node('h3', { text: 'Retry' }));
+                retryPanel.appendChild(node('p', {
+                    className: 'muted',
+                    text: retryBudget > 0
+                        ? 'Create a fresh queued task from this failed one. ' + retryBudget +
+                            ' retry attempt(s) remain in the budget.'
+                        : 'The retry budget for this task is exhausted. Create a new task instead.'
+                }));
+                retryPanel.appendChild(node('button', {
+                    className: 'secondary',
+                    type: 'button',
+                    text: 'Create retry task',
+                    disabled: retryBudget <= 0,
+                    onClick: () => retryTask(task.id)
+                }));
+                panel.appendChild(retryPanel);
+            }
+
+            if (panel.childNodes.length) container.appendChild(panel);
+        }
+
+        async function approveApproval(approvalId, diffHash) {
+            if (!approvalId || !diffHash) return;
             try {
-                const data = await apiCall('/api/tasks/approvals/pending');
-                const tbody = document.querySelector('#approvalsTable tbody');
-                tbody.innerHTML = '';
-                if (!data.approvals || data.approvals.length === 0) {
-                    const div = document.createElement('div');
-                    div.textContent = 'No pending approvals.';
-                    msg.appendChild(div);
+                await apiCall('/api/tasks/approvals/' + approvalId + '/approve', {
+                    method: 'POST',
+                    body: { diff_hash: diffHash }
+                });
+                message($('taskDetailMsg'), 'Diff approved. You can now commit it locally.', 'success');
+            } catch (error) {
+                message($('taskDetailMsg'), 'Approval failed: ' + error.message, 'error');
+            }
+            if (currentTask && currentTask.id) {
+                await viewTask(currentTask.id, { quiet: true });
+            }
+            await loadTasks({ quiet: true });
+            await loadApprovals({ quiet: true });
+        }
+
+        async function rejectApproval(approvalId) {
+            if (!approvalId || !confirm('Reject this approval? The task will be cancelled.')) return;
+            try {
+                await apiCall('/api/tasks/approvals/' + approvalId + '/reject', { method: 'POST' });
+                message($('approvalsMsg'), 'Approval rejected. The task was cancelled.', 'info');
+                if (!$('taskDetailSection').classList.contains('hidden')) {
+                    message($('taskDetailMsg'), 'Approval rejected. The task was cancelled.', 'info');
+                }
+            } catch (error) {
+                message($('approvalsMsg'), 'Reject failed: ' + error.message, 'error');
+            }
+            if (currentTask && currentTask.id) {
+                await viewTask(currentTask.id, { quiet: true });
+            }
+            await loadTasks({ quiet: true });
+            await loadApprovals({ quiet: true });
+        }
+
+        async function commitTask(taskId) {
+            if (!confirm('Create a local commit for the approved diff? This does not push anything.')) return;
+            try {
+                const data = await apiCall('/api/tasks/' + taskId + '/commit', { method: 'POST' });
+                message($('taskDetailMsg'), 'Committed locally. State: ' + data.task.state, 'success');
+            } catch (error) {
+                message($('taskDetailMsg'), 'Commit failed: ' + error.message, 'error');
+            }
+            if (currentTask && currentTask.id) {
+                await viewTask(currentTask.id, { quiet: true });
+            }
+            await loadTasks({ quiet: true });
+            await loadApprovals({ quiet: true });
+        }
+
+        // --------------------------------------------------------------- approvals
+
+        async function loadApprovals(options) {
+            const opts = options || {};
+            const body = $('approvalsBody');
+            if (!opts.quiet) {
+                body.replaceChildren(loadingRow(6, 'Loading approvals…'));
+            }
+            try {
+                const data = await apiCall('/api/tasks/approvals/pending', { auth: true });
+                const approvals = data.approvals || [];
+                pendingApprovals = approvals;
+                if (!opts.quiet) message($('approvalsMsg'), '');
+                renderSystemStatus();
+                body.replaceChildren();
+                if (approvals.length === 0) {
+                    body.appendChild(loadingRow(6, 'No pending approvals.'));
                     return;
                 }
-                data.approvals.forEach(appr => {
-                    const row = tbody.insertRow();
-                    const c1 = row.insertCell(); c1.textContent = (appr.id || '').substring(0, 16) + '...';
-                    const c2 = row.insertCell(); c2.textContent = (appr.task_id || '').substring(0, 12) + '...';
-                    const c3 = row.insertCell(); c3.textContent = appr.repo_id || '';
-                    const c4 = row.insertCell(); c4.textContent = appr.action || '';
-                    const c5 = row.insertCell(); c5.textContent = (appr.diff_hash || '').substring(0, 16) + '...';
-                    const c6 = row.insertCell(); c6.textContent = appr.expires_at || '';
-                    const c7 = row.insertCell();
-                    const ab = document.createElement('button');
-                    ab.className = 'success';
-                    ab.textContent = 'Approve';
-                    ab.onclick = () => approveTask(appr.id);
-                    const rb = document.createElement('button');
-                    rb.className = 'danger';
-                    rb.textContent = 'Reject';
-                    rb.onclick = () => rejectTask(appr.id);
-                    c7.appendChild(ab); c7.appendChild(rb);
+                approvals.forEach((approval) => {
+                    const row = node('tr');
+                    row.appendChild(node('td', { className: 'mono', text: shortId(approval.id, 14), title: approval.id }));
+                    row.appendChild(node('td', { className: 'mono', text: shortId(approval.task_id, 12), title: approval.task_id }));
+                    row.appendChild(node('td', { text: approval.action }));
+                    row.appendChild(node('td', { className: 'mono', text: shortId(approval.diff_hash, 16), title: approval.diff_hash }));
+                    row.appendChild(node('td', { text: formatTime(approval.expires_at) }));
+                    const cell = node('td');
+                    const actions = node('div', { className: 'actions' });
+                    actions.appendChild(node('button', {
+                        className: 'secondary small',
+                        type: 'button',
+                        text: 'Review',
+                        onClick: () => viewTask(approval.task_id)
+                    }));
+                    actions.appendChild(node('button', {
+                        className: 'danger small',
+                        type: 'button',
+                        text: 'Reject',
+                        onClick: () => rejectApproval(approval.id)
+                    }));
+                    cell.appendChild(actions);
+                    row.appendChild(cell);
+                    body.appendChild(row);
                 });
-            } catch (e) {
-                const div = document.createElement('div');
-                div.className = 'error';
-                div.textContent = e.message;
-                msg.appendChild(div);
+            } catch (error) {
+                if (isTokenRequired(error)) {
+                    pendingApprovals = [];
+                    body.replaceChildren();
+                    message($('approvalsMsg'), tokenHint('review pending approvals'), 'info');
+                    renderSystemStatus();
+                    return;
+                }
+                message(
+                    $('approvalsMsg'),
+                    (opts.quiet ? 'Could not refresh approvals: ' : 'Could not load approvals: ') +
+                        error.message,
+                    'error'
+                );
+                // Keep the previous pending list visible on a failed poll.
+                if (!opts.quiet) {
+                    pendingApprovals = [];
+                    body.replaceChildren();
+                }
+                renderSystemStatus();
             }
         }
 
-        async function approveTask(approvalId) {
-            const diffHash = prompt('Enter the diff hash from task details to confirm approval (must match):');
-            if (!diffHash) return;
+        // ------------------------------------------------------------ contributions
+
+        async function loadContributions() {
+            const body = $('contributionsBody');
+            message($('contributionsMsg'), 'Loading contributions…', 'info');
+            body.replaceChildren();
             try {
-                await apiCall(`/api/tasks/approvals/${approvalId}/approve`, {
-                    method: 'POST',
-                    body: JSON.stringify({ diff_hash: diffHash.trim() })
+                const data = await apiCall('/api/github/contributions', { auth: true });
+                const summary = data.contributions || {};
+                message($('contributionsMsg'), '');
+                const meta = node('div', { className: 'meta-grid' });
+                meta.appendChild(metaItem('Login', summary.login));
+                meta.appendChild(metaItem(
+                    'Range',
+                    (summary.from || '—') + ' → ' + (summary.to || '—')
+                ));
+                meta.appendChild(metaItem('Total contributions', summary.total));
+                meta.appendChild(metaItem('Active days', summary.active_days));
+                body.appendChild(meta);
+
+                const breakdown = summary.breakdown || {};
+                const chips = node('div', { className: 'row', style: 'margin-top:0.5rem;' });
+                [
+                    ['commits', 'commits'],
+                    ['issues', 'issues'],
+                    ['pull_requests', 'pull requests'],
+                    ['reviews', 'reviews'],
+                    ['restricted', 'restricted']
+                ].forEach(([key, label]) => {
+                    chips.appendChild(node('span', {
+                        className: 'badge muted',
+                        text: label + ': ' + (breakdown[key] || 0)
+                    }));
                 });
-                alert('Approved');
-                loadApprovals();
-                loadTasks();
-            } catch (e) {
-                alert('Error: ' + e.message);
+                body.appendChild(chips);
+
+                const days = (summary.days || []).filter((day) => day.count > 0);
+                const dayWrap = node('div', { className: 'row', style: 'margin-top:0.6rem;' });
+                if (days.length === 0) {
+                    dayWrap.appendChild(node('span', {
+                        className: 'empty',
+                        text: 'No contribution activity in this range.'
+                    }));
+                } else {
+                    days.forEach((day) => {
+                        dayWrap.appendChild(node('span', {
+                            className: 'badge ' + (day.count > 0 ? 'ok' : 'muted'),
+                            text: day.date + ': ' + day.count,
+                            title: day.date
+                        }));
+                    });
+                }
+                body.appendChild(dayWrap);
+
+                if (summary.note) {
+                    body.appendChild(node('p', { className: 'muted', text: summary.note }));
+                }
+            } catch (error) {
+                body.replaceChildren();
+                if (isTokenRequired(error)) {
+                    message($('contributionsMsg'), tokenHint('load GitHub contribution activity'), 'info');
+                    return;
+                }
+                message($('contributionsMsg'), 'Could not load contributions: ' + error.message, 'error');
             }
         }
 
-        async function rejectTask(approvalId) {
-            if (!confirm('Reject this approval? This cannot be undone.')) return;
+        // -------------------------------------------------------------- daily automation / schedules
+
+        async function loadSchedules(options) {
+            const opts = options || {};
+            const container = $('schedulesMsg');
+            if (!opts.quiet) clear(container);
+            if (!token) {
+                schedules = [];
+                renderSchedules();
+                return;
+            }
             try {
-                await apiCall(`/api/tasks/approvals/${approvalId}/reject`, { method: 'POST' });
-                alert('Rejected');
-                loadApprovals();
-                loadTasks();
-            } catch (e) {
-                alert('Error: ' + e.message);
+                const data = await apiCall('/api/schedules');
+                schedules = data.schedules || [];
+                if (data.detected_timezone) {
+                    detectedTimezone = data.detected_timezone;
+                    const hintEl = $('scheduleDetectedTzHint');
+                    if (hintEl) {
+                        hintEl.textContent = 'Detected machine timezone: ' + detectedTimezone;
+                    }
+                }
+                renderSchedules();
+            } catch (error) {
+                if (!opts.quiet) {
+                    message(container, 'Could not load schedules: ' + error.message, 'error');
+                }
             }
         }
 
-        window.addEventListener('beforeunload', () => { token = ''; });
+        function renderSchedules() {
+            const tbody = $('schedulesBody');
+            if (!tbody) return;
+            clear(tbody);
+            if (schedules.length === 0) {
+                const tr = node('tr');
+                const td = node('td', {
+                    text: token ? 'No daily schedules configured yet.' : 'Connect with the API token to view daily schedules.',
+                    attrs: { colspan: '8' },
+                    className: 'hint'
+                });
+                tr.appendChild(td);
+                tbody.appendChild(tr);
+                return;
+            }
+
+            schedules.forEach((sch) => {
+                const tr = node('tr');
+
+                const tdId = node('td');
+                const code = node('code', { text: shortId(sch.id, 8), attrs: { title: sch.id } });
+                tdId.appendChild(code);
+                tr.appendChild(tdId);
+
+                const tdRepo = node('td', { text: repoLabel(sch.repo_id) });
+                tr.appendChild(tdRepo);
+
+                const tdType = node('td');
+                tdType.appendChild(node('span', {
+                    className: 'badge ' + (READ_ONLY_TASK_TYPES.has(sch.task_type) ? 'ok' : 'muted'),
+                    text: TASK_TYPE_LABELS[sch.task_type] || sch.task_type
+                }));
+                tr.appendChild(tdType);
+
+                const tdTime = node('td', { text: sch.local_time + ' (' + sch.timezone + ')' });
+                tr.appendChild(tdTime);
+
+                const tdStatus = node('td');
+                tdStatus.appendChild(node('span', {
+                    className: 'badge ' + (sch.enabled ? 'ok' : 'muted'),
+                    text: sch.enabled ? 'Active' : 'Paused'
+                }));
+                tr.appendChild(tdStatus);
+
+                const lastRunText = sch.last_run_at
+                    ? formatTime(sch.last_run_at) + (sch.last_run_date ? ' [' + sch.last_run_date + ']' : '')
+                    : 'Never';
+                const tdLast = node('td', { text: lastRunText });
+                tr.appendChild(tdLast);
+
+                const nextRunText = sch.next_run_at ? formatTime(sch.next_run_at) : (sch.enabled ? 'Pending' : 'Paused');
+                const tdNext = node('td', { text: nextRunText });
+                tr.appendChild(tdNext);
+
+                const tdActions = node('td');
+                const actionsRow = node('div', { className: 'row' });
+
+                const toggleBtn = node('button', {
+                    className: (sch.enabled ? 'secondary' : 'success') + ' small',
+                    text: sch.enabled ? 'Pause' : 'Resume',
+                    attrs: { type: 'button' }
+                });
+                toggleBtn.addEventListener('click', () => toggleSchedulePause(sch.id, !sch.enabled));
+                actionsRow.appendChild(toggleBtn);
+
+                const editBtn = node('button', {
+                    className: 'secondary small',
+                    text: 'Edit',
+                    attrs: { type: 'button' }
+                });
+                editBtn.addEventListener('click', () => openEditSchedule(sch));
+                actionsRow.appendChild(editBtn);
+
+                const deleteBtn = node('button', {
+                    className: 'danger small',
+                    text: 'Delete',
+                    attrs: { type: 'button' }
+                });
+                deleteBtn.addEventListener('click', () => deleteSchedule(sch.id));
+                actionsRow.appendChild(deleteBtn);
+
+                const histBtn = node('button', {
+                    className: 'secondary small',
+                    text: 'History',
+                    attrs: { type: 'button' }
+                });
+                histBtn.addEventListener('click', () => viewScheduleHistory(sch.id));
+                actionsRow.appendChild(histBtn);
+
+                tdActions.appendChild(actionsRow);
+                tr.appendChild(tdActions);
+
+                tbody.appendChild(tr);
+            });
+        }
+
+        function openNewSchedule() {
+            $('scheduleFormTitle').textContent = 'Create daily schedule';
+            $('scheduleEditId').value = '';
+            $('scheduleLocalTime').value = '';
+            $('schedulePrompt').value = '';
+            $('scheduleTimezone').value = detectedTimezone || 'UTC';
+            $('scheduleFormContainer').classList.remove('hidden');
+            clear($('schedulesMsg'));
+        }
+
+        function openEditSchedule(sch) {
+            $('scheduleFormTitle').textContent = 'Edit daily schedule (' + shortId(sch.id, 8) + ')';
+            $('scheduleEditId').value = sch.id;
+            $('scheduleRepoSelect').value = String(sch.repo_id);
+            $('scheduleTaskType').value = sch.task_type;
+            $('scheduleLocalTime').value = sch.local_time;
+            $('scheduleTimezone').value = sch.timezone;
+            $('schedulePrompt').value = sch.prompt;
+            $('scheduleFormContainer').classList.remove('hidden');
+            clear($('schedulesMsg'));
+        }
+
+        function closeScheduleForm() {
+            $('scheduleFormContainer').classList.add('hidden');
+            $('scheduleEditId').value = '';
+        }
+
+        async function saveSchedule() {
+            const container = $('schedulesMsg');
+            clear(container);
+            const editId = $('scheduleEditId').value;
+            const repoId = parseInt($('scheduleRepoSelect').value, 10);
+            const taskType = $('scheduleTaskType').value;
+            const localTime = $('scheduleLocalTime').value;
+            const timezone = $('scheduleTimezone').value.trim() || detectedTimezone || 'UTC';
+            const prompt = $('schedulePrompt').value.trim();
+
+            if (!editId && (!repoId || isNaN(repoId))) {
+                message(container, 'Select a repository for the schedule.', 'error');
+                return;
+            }
+            if (!localTime) {
+                message(container, 'Specify a local time in HH:MM format.', 'error');
+                return;
+            }
+            if (!prompt) {
+                message(container, 'Prompt / instructions cannot be empty.', 'error');
+                return;
+            }
+
+            try {
+                if (editId) {
+                    await apiCall('/api/schedules/' + encodeURIComponent(editId), {
+                        method: 'PATCH',
+                        body: {
+                            task_type: taskType,
+                            local_time: localTime,
+                            timezone: timezone,
+                            prompt: prompt
+                        }
+                    });
+                    message(container, 'Schedule updated successfully.', 'success');
+                } else {
+                    await apiCall('/api/schedules', {
+                        method: 'POST',
+                        body: {
+                            repo_id: repoId,
+                            task_type: taskType,
+                            local_time: localTime,
+                            timezone: timezone,
+                            prompt: prompt,
+                            enabled: true
+                        }
+                    });
+                    message(container, 'Schedule created successfully.', 'success');
+                }
+                closeScheduleForm();
+                await loadSchedules({ quiet: true });
+            } catch (error) {
+                message(container, (editId ? 'Failed to update schedule: ' : 'Failed to create schedule: ') + error.message, 'error');
+            }
+        }
+
+        async function toggleSchedulePause(scheduleId, resume) {
+            const container = $('schedulesMsg');
+            clear(container);
+            try {
+                await apiCall('/api/schedules/' + encodeURIComponent(scheduleId) + '/' + (resume ? 'resume' : 'pause'), {
+                    method: 'POST'
+                });
+                message(container, 'Schedule ' + (resume ? 'resumed' : 'paused') + ' successfully.', 'success');
+                await loadSchedules({ quiet: true });
+            } catch (error) {
+                message(container, 'Could not update schedule status: ' + error.message, 'error');
+            }
+        }
+
+        async function deleteSchedule(scheduleId) {
+            if (!confirm('Are you sure you want to delete daily schedule ' + scheduleId + '?')) return;
+            const container = $('schedulesMsg');
+            clear(container);
+            try {
+                await apiCall('/api/schedules/' + encodeURIComponent(scheduleId), {
+                    method: 'DELETE'
+                });
+                message(container, 'Schedule deleted successfully.', 'success');
+                if (currentScheduleHistoryId === scheduleId) {
+                    closeScheduleHistory();
+                }
+                await loadSchedules({ quiet: true });
+            } catch (error) {
+                message(container, 'Could not delete schedule: ' + error.message, 'error');
+            }
+        }
+
+        async function viewScheduleHistory(scheduleId) {
+            currentScheduleHistoryId = scheduleId;
+            const section = $('scheduleHistorySection');
+            const title = $('scheduleHistoryTitle');
+            const subtitle = $('scheduleHistorySubtitle');
+            const tbody = $('scheduleHistoryBody');
+            const container = $('scheduleHistoryMsg');
+            clear(container);
+            clear(tbody);
+            title.textContent = 'Execution History (' + shortId(scheduleId, 8) + ')';
+            subtitle.textContent = 'Persistent audit history and created tasks for schedule ' + scheduleId;
+            section.classList.remove('hidden');
+
+            try {
+                const data = await apiCall('/api/schedules/' + encodeURIComponent(scheduleId) + '/history');
+                const history = data.history || [];
+                if (history.length === 0) {
+                    const tr = node('tr');
+                    tr.appendChild(node('td', {
+                        text: 'No execution runs recorded for this schedule yet.',
+                        attrs: { colspan: '5' },
+                        className: 'hint'
+                    }));
+                    tbody.appendChild(tr);
+                    return;
+                }
+                history.forEach((h) => {
+                    const tr = node('tr');
+                    tr.appendChild(node('td', { text: formatTime(h.created_at) }));
+
+                    const tdOutcome = node('td');
+                    tdOutcome.appendChild(node('span', {
+                        className: 'badge ' + (h.outcome === 'success' ? 'ok' : 'danger'),
+                        text: h.outcome
+                    }));
+                    tr.appendChild(tdOutcome);
+
+                    tr.appendChild(node('td', { text: h.local_date || '—' }));
+
+                    const tdTask = node('td');
+                    if (h.task_id) {
+                        const taskLink = node('a', {
+                            text: shortId(h.task_id, 8),
+                            attrs: { href: '#', title: h.task_id },
+                            className: 'link'
+                        });
+                        taskLink.addEventListener('click', (ev) => {
+                            ev.preventDefault();
+                            viewTask(h.task_id);
+                        });
+                        tdTask.appendChild(taskLink);
+                    } else {
+                        tdTask.textContent = h.error ? h.error.slice(0, 40) : '—';
+                    }
+                    tr.appendChild(tdTask);
+
+                    const tdState = node('td');
+                    if (h.task_state) {
+                        tdState.appendChild(node('span', {
+                            className: 'badge ' + (h.task_state === 'analyzed' || h.task_state === 'committed' ? 'ok' : 'muted'),
+                            text: h.task_state
+                        }));
+                    } else {
+                        tdState.textContent = '—';
+                    }
+                    tr.appendChild(tdState);
+
+                    tbody.appendChild(tr);
+                });
+            } catch (error) {
+                message(container, 'Could not load schedule history: ' + error.message, 'error');
+            }
+        }
+
+        function closeScheduleHistory() {
+            $('scheduleHistorySection').classList.add('hidden');
+            currentScheduleHistoryId = null;
+        }
+
+        // -------------------------------------------------------------- refresh loop
+
+        async function refreshAll() {
+            await loadHealth();
+            await loadRepos({ quiet: true });
+            await loadTasks({ quiet: true });
+            await loadApprovals({ quiet: true });
+            await loadSchedules({ quiet: true });
+            if (currentTask && currentTask.id) {
+                await viewTask(currentTask.id, { quiet: true });
+            }
+        }
+
+        function startAutoRefresh() {
+            if (refreshTimer) clearInterval(refreshTimer);
+            refreshTimer = setInterval(async () => {
+                if (!$('autoRefresh').checked || document.hidden) return;
+                await loadTasks({ quiet: true });
+                await loadApprovals({ quiet: true });
+                if (currentTask && (currentTask.state === 'running' || currentTask.state === 'queued')) {
+                    await viewTask(currentTask.id, { quiet: true });
+                }
+            }, 5000);
+        }
+
+        function bind() {
+            $('connectBtn').addEventListener('click', connect);
+            $('disconnectBtn').addEventListener('click', disconnect);
+            $('apiToken').addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') connect();
+            });
+            $('refreshSystemBtn').addEventListener('click', () => loadHealth());
+            $('refreshReposBtn').addEventListener('click', () => loadRepos());
+            $('addRepoBtn').addEventListener('click', addRepo);
+            $('createTaskBtn').addEventListener('click', () => createTask(false));
+            $('createRunTaskBtn').addEventListener('click', () => createTask(true));
+            $('refreshTasksBtn').addEventListener('click', () => loadTasks());
+            $('schedulerTickBtn').addEventListener('click', tickScheduler);
+            $('stateFilter').addEventListener('change', renderTasks);
+            $('taskType').addEventListener('change', syncCreateRunControl);
+            $('refreshApprovalsBtn').addEventListener('click', () => loadApprovals());
+            $('loadContributionsBtn').addEventListener('click', loadContributions);
+            $('closeDetailBtn').addEventListener('click', closeTaskDetail);
+            $('newScheduleBtn').addEventListener('click', openNewSchedule);
+            $('refreshSchedulesBtn').addEventListener('click', () => loadSchedules());
+            $('saveScheduleBtn').addEventListener('click', saveSchedule);
+            $('cancelScheduleBtn').addEventListener('click', closeScheduleForm);
+            $('closeScheduleHistoryBtn').addEventListener('click', closeScheduleHistory);
+        }
+
+        window.addEventListener('beforeunload', () => {
+            token = '';
+        });
+
+        bind();
+        populateRepoTypeChoices();
+        refreshAll();
+        startAutoRefresh();
     </script>
 </body>
 </html>

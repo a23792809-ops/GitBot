@@ -35,6 +35,8 @@ class Settings:
     port: int = DEFAULT_PORT
     log_level: str = DEFAULT_LOG_LEVEL
     dry_run: bool = True
+    supervised_automation_enabled: bool = False
+    allow_approved_local_commits: bool = False
     home: Path = DEFAULT_HOME
     data_dir: Path = DEFAULT_HOME / ".local" / "share" / "gitbot"
     config_dir: Path = DEFAULT_HOME / ".config" / "gitbot"
@@ -42,6 +44,13 @@ class Settings:
     token_file: Path = DEFAULT_HOME / ".config" / "gitbot" / "token"
     gh_timeout_s: float = 30.0
     github_cache_ttl_s: int = 60
+    scheduler_enabled: bool = False
+    scheduler_interval_s: int = 30
+    retry_delay_s: int = 30
+    ai_gateway_enabled: bool = True
+    ai_gateway_model: str = "opencode/inkling-2-small-free"
+    ai_gateway_timeout_s: float = 120.0
+    ai_gateway_relay_port: int = 18080
 
     def ensure_directories(self) -> None:
         """Create data/config directories with 0700 permissions."""
@@ -95,7 +104,33 @@ def _parse_float(key: str, raw: str, *, minimum: float, maximum: float) -> float
     return value
 
 
+def _require_text(key: str, raw: str) -> str:
+    value = raw.strip()
+    if not value:
+        raise ConfigError(f"{key} cannot be empty", details={"key": key})
+    if len(value) > 200:
+        raise ConfigError(f"{key} must be at most 200 characters", details={"key": key})
+    return value
+
+
+def _require_model(key: str, raw: str) -> str:
+    """Validate the coarse ``provider/model`` shape without probing the provider.
+
+    A model that appears in a cached catalog may still be unroutable.  This
+    check only catches configuration mistakes early; live availability is
+    reported by the gateway as an explicit provider error.
+    """
+    value = _require_text(key, raw)
+    if not _MODEL_REFERENCE.fullmatch(value):
+        raise ConfigError(
+            f"{key} must be a provider/model reference such as 'opencode/inkling-2-small-free'",
+            details={"key": key},
+        )
+    return value
+
+
 _VAR_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)")
+_MODEL_REFERENCE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._:/-]*$")
 
 
 def _expand_vars(text: str, env: Mapping[str, str]) -> str:
@@ -187,12 +222,21 @@ def load_settings(
         "port": str(DEFAULT_PORT),
         "log_level": DEFAULT_LOG_LEVEL,
         "dry_run": "true",
+        "supervised_automation_enabled": "false",
+        "allow_approved_local_commits": "false",
         "data_dir": str(data_dir),
         "config_dir": str(config_dir),
         "db_path": str(data_dir / "gitbot.db"),
         "token_file": str(config_dir / "token"),
         "gh_timeout_s": "30",
         "github_cache_ttl_s": "60",
+        "scheduler_enabled": "false",
+        "scheduler_interval_s": "30",
+        "retry_delay_s": "30",
+        "ai_gateway_enabled": "true",
+        "ai_gateway_model": "opencode/inkling-2-small-free",
+        "ai_gateway_timeout_s": "120",
+        "ai_gateway_relay_port": "18080",
     }
 
     file_values = read_env_file(env_file) if env_file is not None else {}
@@ -212,6 +256,12 @@ def load_settings(
         port=_parse_int("GITBOT_PORT", values["port"], minimum=1, maximum=65535),
         log_level=_normalize_log_level(values["log_level"]),
         dry_run=_parse_bool("GITBOT_DRY_RUN", values["dry_run"]),
+        supervised_automation_enabled=_parse_bool(
+            "GITBOT_SUPERVISED_AUTOMATION_ENABLED", values["supervised_automation_enabled"]
+        ),
+        allow_approved_local_commits=_parse_bool(
+            "GITBOT_ALLOW_APPROVED_LOCAL_COMMITS", values["allow_approved_local_commits"]
+        ),
         home=home,
         data_dir=_expand_path(values["data_dir"], environment),
         config_dir=_expand_path(values["config_dir"], environment),
@@ -222,6 +272,33 @@ def load_settings(
         ),
         github_cache_ttl_s=_parse_int(
             "GITBOT_GITHUB_CACHE_TTL_S", values["github_cache_ttl_s"], minimum=0, maximum=3600
+        ),
+        scheduler_enabled=_parse_bool("GITBOT_SCHEDULER_ENABLED", values["scheduler_enabled"]),
+        scheduler_interval_s=_parse_int(
+            "GITBOT_SCHEDULER_INTERVAL_S",
+            values["scheduler_interval_s"],
+            minimum=1,
+            maximum=3600,
+        ),
+        retry_delay_s=_parse_int(
+            "GITBOT_RETRY_DELAY_S",
+            values["retry_delay_s"],
+            minimum=0,
+            maximum=86400,
+        ),
+        ai_gateway_enabled=_parse_bool("GITBOT_AI_GATEWAY_ENABLED", values["ai_gateway_enabled"]),
+        ai_gateway_model=_require_model("GITBOT_AI_GATEWAY_MODEL", values["ai_gateway_model"]),
+        ai_gateway_timeout_s=_parse_float(
+            "GITBOT_AI_GATEWAY_TIMEOUT_S",
+            values["ai_gateway_timeout_s"],
+            minimum=5.0,
+            maximum=600.0,
+        ),
+        ai_gateway_relay_port=_parse_int(
+            "GITBOT_AI_GATEWAY_RELAY_PORT",
+            values["ai_gateway_relay_port"],
+            minimum=1024,
+            maximum=65535,
         ),
     )
     return settings

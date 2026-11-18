@@ -12,7 +12,13 @@ from dataclasses import dataclass
 
 from gitbot.audit import AuditLog
 from gitbot.github.client import GhClient
-from gitbot.models import AuditOutcome, GithubAccount, GithubRepo, RateLimit
+from gitbot.models import (
+    AuditOutcome,
+    ContributionSummary,
+    GithubAccount,
+    GithubRepo,
+    RateLimit,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,3 +84,18 @@ class GithubService:
 
     def invalidate_cache(self) -> None:
         self._cache = None
+
+    def contributions(self, *, from_date: str, to_date: str) -> ContributionSummary:
+        """Return contribution activity for the authenticated account."""
+        account = self._client.auth_status()
+        summary = self._client.contributions(account.login, from_date, to_date)
+        if self._audit is not None:
+            self._audit.record(
+                event_type="github.read",
+                action="contributions",
+                actor="user",
+                target=account.login,
+                outcome=AuditOutcome.SUCCESS,
+                detail={"from": from_date, "to": to_date, "total": summary.total},
+            )
+        return summary

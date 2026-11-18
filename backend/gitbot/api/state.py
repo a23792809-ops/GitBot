@@ -12,6 +12,7 @@ from gitbot.config import Settings
 from gitbot.db import Database
 from gitbot.github.service import GithubService
 from gitbot.repos import RepoStore
+from gitbot.tasks.scheduler import Scheduler
 
 
 @dataclass(slots=True)
@@ -21,6 +22,7 @@ class AppState:
     audit: AuditLog
     github: GithubService
     repos: RepoStore
+    scheduler: Scheduler
 
 
 def get_state(request: Request) -> AppState:

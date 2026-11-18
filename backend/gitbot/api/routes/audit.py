@@ -4,15 +4,16 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 
+from gitbot.api.deps import require_token
 from gitbot.api.state import StateDep
 from gitbot.audit import MAX_LIMIT
 
 router = APIRouter(prefix="/api", tags=["audit"])
 
 
-@router.get("/audit")
+@router.get("/audit", dependencies=[Depends(require_token)])
 def list_audit_entries(
     state: StateDep,
     limit: Annotated[int, Query(ge=1, le=MAX_LIMIT)] = 50,

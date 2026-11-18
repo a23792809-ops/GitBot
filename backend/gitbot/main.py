@@ -6,6 +6,7 @@ import argparse
 import logging
 import os
 import sys
+from pathlib import Path
 
 import uvicorn
 
@@ -14,23 +15,38 @@ from gitbot.api.app import create_app
 from gitbot.audit import AuditLog
 from gitbot.config import Settings, load_settings
 from gitbot.db import Database
+from gitbot.errors import ConfigError
 from gitbot.github.client import GhClient
 from gitbot.github.service import GithubService
 from gitbot.security import ensure_token
 
 
-def _configure_logging() -> None:
+def _configure_logging(settings: Settings) -> None:
     from gitbot.logging_setup import configure_logging
 
-    configure_logging()
+    # The resolved GITBOT_LOG_LEVEL must actually reach the root logger; the
+    # previous call used the INFO default and silently ignored configuration.
+    configure_logging(level=settings.log_level)
 
 
 def _run_check(settings: Settings) -> int:
+    from gitbot.security.sandbox import detect_sandbox_capabilities
+
     database = Database(settings.db_path)
     applied = database.migrate()
-    print(f"ok: config valid (bind={settings.host}:{settings.port}, dry_run={settings.dry_run})")
+    sandbox = detect_sandbox_capabilities()
+    print(
+        "ok: config valid "
+        f"(bind={settings.host}:{settings.port}, dry_run={settings.dry_run}, "
+        f"supervised_automation={settings.supervised_automation_enabled}, "
+        f"allow_approved_local_commits={settings.allow_approved_local_commits})"
+    )
     print(f"migrations: {', '.join(applied) if applied else 'none'}")
     print(f"database: {settings.db_path}")
+    if sandbox.can_run:
+        print(f"sandbox: available ({sandbox.version or 'bubblewrap'})")
+    else:
+        print(f"sandbox: unavailable ({sandbox.detail or 'no strong sandbox'})")
     return 0
 
 
@@ -43,29 +59,12 @@ def _rotate_token(settings: Settings) -> int:
     return 0
 
 
-def _recover_stale_running(database: Database, audit: AuditLog) -> None:
-    """Mark tasks stuck in running as interrupted on startup."""
-    from datetime import UTC, datetime
-
-    now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-    with database.connect() as conn:
-        rows = conn.execute("SELECT id FROM tasks WHERE state = 'running'").fetchall()
-        for row in rows:
-            try:
-                conn.execute(
-                    "UPDATE tasks SET state = 'failed', "
-                    "error_message = COALESCE(error_message, 'interrupted'), "
-                    "finished_at = COALESCE(finished_at, ?), updated_at = ? "
-                    "WHERE id = ? AND state = 'running'",
-                    (now, now, row["id"]),
-                )
-                conn.execute(
-                    "INSERT INTO task_events (task_id, created_at, event_type, actor, detail) "
-                    "VALUES (?, ?, 'task.interrupted', 'system', '{}')",
-                    (row["id"], now),
-                )
-            except Exception:  # noqa: S110
-                pass
+def _find_env_file() -> Path | None:
+    """Prefer a project-local .env, then the per-user config directory."""
+    for candidate in (Path.cwd() / ".env", Path.home() / ".config" / "gitbot" / ".env"):
+        if candidate.is_file():
+            return candidate
+    return None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -82,11 +81,16 @@ def main(argv: list[str] | None = None) -> int:
         print(__version__)
         return 0
 
-    settings = load_settings(env=os.environ)
-    if args.host is not None:
-        settings = settings.model_copy(update={"host": args.host})
-    if args.port is not None:
-        settings = settings.model_copy(update={"port": args.port})
+    overrides = {
+        key: value for key, value in (("host", args.host), ("port", args.port)) if value is not None
+    }
+    try:
+        # Overrides go through the same validation as environment values, so
+        # `--host 0.0.0.0` is refused rather than quietly binding publicly.
+        settings = load_settings(env=os.environ, env_file=_find_env_file(), overrides=overrides)
+    except ConfigError as exc:
+        print(f"error: {exc.message}", file=sys.stderr)
+        return 2
 
     if args.rotate_token:
         return _rotate_token(settings)
@@ -98,12 +102,11 @@ def main(argv: list[str] | None = None) -> int:
         # default serve
         pass
 
-    _configure_logging()
+    _configure_logging(settings)
     logger = logging.getLogger("gitbot")
     database = Database(settings.db_path)
     database.migrate()
     audit = AuditLog(database)
-    _recover_stale_running(database, audit)
     ensure_token(settings.token_file)
 
     client = GhClient(timeout_s=settings.gh_timeout_s)
