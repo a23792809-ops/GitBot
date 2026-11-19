@@ -50,6 +50,7 @@ def _get_engine(state: StateDep) -> TaskEngine:
         retry_delay_s=state.settings.retry_delay_s,
         gateway=GatewayConfig(
             enabled=state.settings.ai_gateway_enabled,
+            provider=state.settings.ai_gateway_provider,
             model=state.settings.ai_gateway_model,
             timeout_s=state.settings.ai_gateway_timeout_s,
             relay_port=state.settings.ai_gateway_relay_port,

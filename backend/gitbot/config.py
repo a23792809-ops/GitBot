@@ -48,6 +48,7 @@ class Settings:
     scheduler_interval_s: int = 30
     retry_delay_s: int = 30
     ai_gateway_enabled: bool = True
+    ai_gateway_provider: str = "opencode"
     ai_gateway_model: str = "opencode/inkling-2-small-free"
     ai_gateway_timeout_s: float = 120.0
     ai_gateway_relay_port: int = 18080
@@ -234,6 +235,7 @@ def load_settings(
         "scheduler_interval_s": "30",
         "retry_delay_s": "30",
         "ai_gateway_enabled": "true",
+        "ai_gateway_provider": "opencode",
         "ai_gateway_model": "opencode/inkling-2-small-free",
         "ai_gateway_timeout_s": "120",
         "ai_gateway_relay_port": "18080",
@@ -287,6 +289,9 @@ def load_settings(
             maximum=86400,
         ),
         ai_gateway_enabled=_parse_bool("GITBOT_AI_GATEWAY_ENABLED", values["ai_gateway_enabled"]),
+        ai_gateway_provider=_require_text(
+            "GITBOT_AI_GATEWAY_PROVIDER", values["ai_gateway_provider"]
+        ).lower(),
         ai_gateway_model=_require_model("GITBOT_AI_GATEWAY_MODEL", values["ai_gateway_model"]),
         ai_gateway_timeout_s=_parse_float(
             "GITBOT_AI_GATEWAY_TIMEOUT_S",

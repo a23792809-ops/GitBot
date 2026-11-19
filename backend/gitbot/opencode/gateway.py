@@ -34,6 +34,8 @@ import socketserver
 import tempfile
 import threading
 import time
+import urllib.error
+import urllib.request
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -169,7 +171,11 @@ class GatewayConfig:
     """
 
     enabled: bool = False
+    provider: str = "opencode"
     model: str = DEFAULT_GATEWAY_MODEL
+    api_base: str = "https://api.groq.com/openai/v1"
+    credential_env: str = "GROQ_API_KEY"
+    credential_file: str = ""
     executable: str = "opencode"
     timeout_s: float = 120.0
     kill_grace_s: float = 5.0
@@ -181,8 +187,15 @@ class GatewayConfig:
     retry_invalid_json: bool = True
 
     def validate(self) -> None:
+        if self.provider not in {"opencode", "groq"}:
+            raise GatewayError("gateway provider must be 'opencode' or 'groq'")
         if not self.model.strip():
             raise GatewayError("gateway model is empty")
+        if self.provider == "groq":
+            if not self.api_base.strip():
+                raise GatewayError("gateway api_base is empty")
+            if not self.credential_env.strip():
+                raise GatewayError("gateway credential_env is empty")
         if not _MODEL_REFERENCE.fullmatch(self.model.strip()):
             raise GatewayError("gateway model must be a provider/model reference")
         if not self.executable.strip():
@@ -932,7 +945,7 @@ class HostModelRunner:
         if not self._started:
             raise GatewayError("host model runner is not started")
         if cancel_event is not None and cancel_event.is_set():
-            raise GatewayCancelledError("host model request was cancelled")
+            raise GatewayCancelledError("host model request was cancelled") from None
         if len(prompt) > self.config.max_prompt_chars:
             raise GatewayRequestError("gateway prompt exceeds the configured limit")
         effective_timeout = self.config.timeout_s if timeout_s is None else timeout_s
@@ -1008,7 +1021,7 @@ class HostModelRunner:
         if run.cancelled or (cancel_event is not None and cancel_event.is_set()):
             raise GatewayCancelledError("host model request was cancelled")
         if run.timed_out:
-            raise GatewayTimeoutError("host model request timed out")
+            raise GatewayTimeoutError("host model request timed out") from None
         # A host-side tool event means the runner ignored the JSON protocol and
         # reached for the host (or its private /repo).  Fail closed before the
         # output is parsed; the message never includes tool output or paths.
@@ -1028,7 +1041,7 @@ class HostModelRunner:
             provider_error = _classify_provider_error(detail)
             if provider_error is not None:
                 logger.warning("host model provider error: %s", provider_error.provider_code)
-                raise provider_error
+                raise provider_error from None
             raise GatewayError(f"host model runner exited with {run.exit_code}: {detail}")
         try:
             return _extract_host_text(run.stdout)
@@ -1038,6 +1051,211 @@ class HostModelRunner:
                 logger.warning("host model provider error: %s", provider_error.provider_code)
                 raise provider_error from exc
             raise
+
+
+class GroqHostRunner:
+    """Host-side runner that calls the Groq OpenAI-compatible API directly.
+
+    The repository sandbox never sees this runner, its URL, or its credential.
+    The credential is read from the host process environment at call time and is
+    never stored in ``GatewayConfig`` or returned to callers.
+    """
+
+    def __init__(self, config: GatewayConfig) -> None:
+        self.config = config
+        if "/" not in config.model:
+            raise GatewayError("groq model must be a provider/model reference")
+        self._groq_model = config.model.split("/", 1)[1].strip()
+        if not self._groq_model:
+            raise GatewayError("groq model is empty")
+
+    def start(self) -> None:
+        return None
+
+    def stop(self) -> None:
+        return None
+
+    def _load_api_key(self) -> str:
+        env_value = os.environ.get(self.config.credential_env, "").strip()
+        if env_value:
+            return env_value
+        raw_path = self.config.credential_file.strip() or str(
+            Path.home() / ".config" / "gitbot" / "groq_api_key"
+        )
+        path = Path(raw_path).expanduser()
+        try:
+            mode = path.stat().st_mode
+        except FileNotFoundError:
+            return ""
+        except OSError:
+            raise GatewayError("Groq credential file could not be read") from None
+        if mode & 0o077:
+            raise GatewayError("Groq credential file permissions are too open")
+        try:
+            return path.read_text(encoding="utf-8").strip()
+        except OSError:
+            raise GatewayError("Groq credential file could not be read") from None
+
+    def complete(
+        self,
+        prompt: str,
+        *,
+        tools: Sequence[Mapping[str, Any]] | None = None,
+        timeout_s: float | None = None,
+        cancel_event: threading.Event | None = None,
+    ) -> str:
+        if cancel_event is not None and cancel_event.is_set():
+            raise GatewayCancelledError("host model request was cancelled")
+        if len(prompt) > self.config.max_prompt_chars:
+            raise GatewayRequestError("gateway prompt exceeds the configured limit")
+        api_key = self._load_api_key()
+        if not api_key:
+            raise GatewayProviderError(
+                "Groq API key is not configured",
+                provider_code="auth",
+                http_status=401,
+                code="ai_gateway_auth_failed",
+            )
+        effective_timeout = self.config.timeout_s if timeout_s is None else timeout_s
+        url = self.config.api_base.rstrip("/") + "/chat/completions"
+        max_tokens = min(self.config.max_output_chars, 8192)
+        groq_tools = []
+        allowed_tool_names = set()
+        for tool in tools or []:
+            if not isinstance(tool, Mapping):
+                continue
+            name = tool.get("name")
+            if not isinstance(name, str) or not name:
+                continue
+            allowed_tool_names.add(name)
+            groq_tools.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": name,
+                        "description": str(tool.get("description", ""))[:1000],
+                        "parameters": tool.get("parameters")
+                        if isinstance(tool.get("parameters"), Mapping)
+                        else {"type": "object"},
+                    },
+                }
+            )
+        payload = {
+            "model": self._groq_model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0,
+            "max_tokens": max_tokens,
+        }
+        if groq_tools:
+            payload["tools"] = groq_tools
+            payload["tool_choice"] = "auto"
+        else:
+            payload["tool_choice"] = "none"
+        data = json.dumps(payload).encode("utf-8")
+        request = urllib.request.Request(  # noqa: S310
+            url,
+            data=data,
+            headers={
+                "Authorization": "Bearer " + api_key,
+                "Content-Type": "application/json",
+                "User-Agent": "GitBot",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=effective_timeout) as response:  # noqa: S310
+                raw_body = response.read(_MAX_UPSTREAM_BYTES + 1)
+        except urllib.error.HTTPError as exc:
+            body = ""
+            try:
+                body = exc.read(4096).decode("utf-8", "replace")
+            except Exception:
+                body = ""
+            detail = redact_text(body or str(exc))[:800]
+            provider_error = _classify_provider_error(detail)
+            if provider_error is not None:
+                raise provider_error from None
+            if exc.code in (401, 403):
+                raise GatewayProviderError(
+                    "host model provider rejected its credentials",
+                    provider_code="auth",
+                    http_status=exc.code,
+                    code="ai_gateway_auth_failed",
+                ) from None
+            if exc.code == 429:
+                raise GatewayProviderError(
+                    "host model provider rate limit reached; retry later",
+                    provider_code="rate_limit",
+                    http_status=429,
+                    code="ai_gateway_rate_limited",
+                ) from None
+            if 500 <= exc.code < 600:
+                raise GatewayError(f"host model provider server error: {exc.code}") from None
+            raise GatewayError(f"host model runner exited with {exc.code}: {detail}") from None
+        except urllib.error.URLError as exc:
+            if cancel_event is not None and cancel_event.is_set():
+                raise GatewayCancelledError("host model request was cancelled") from None
+            raise GatewayError(
+                f"host model provider network failure: {redact_text(str(exc.reason))[:500]}"
+            ) from None
+        except TimeoutError:
+            raise GatewayTimeoutError("host model request timed out") from None
+        if cancel_event is not None and cancel_event.is_set():
+            raise GatewayCancelledError("host model request was cancelled")
+        if len(raw_body) > _MAX_UPSTREAM_BYTES:
+            raise GatewayError("host model response is too large")
+        try:
+            parsed = json.loads(raw_body.decode("utf-8", "replace"))
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            raise GatewayError("host model runner returned invalid JSON") from exc
+        if not isinstance(parsed, dict):
+            raise GatewayError("host model runner returned invalid JSON")
+        choices = parsed.get("choices")
+        if not isinstance(choices, list) or not choices:
+            raise GatewayError("host model runner produced no assistant text")
+        first = choices[0]
+        if not isinstance(first, dict):
+            raise GatewayError("host model runner produced no assistant text")
+        message = first.get("message", {})
+        if not isinstance(message, dict):
+            raise GatewayError("host model runner produced no assistant text")
+        tool_calls = message.get("tool_calls")
+        if isinstance(tool_calls, list) and tool_calls:
+            if len(tool_calls) != 1:
+                raise GatewayError("host model runner returned multiple tool calls")
+            tool_call = tool_calls[0]
+            if not isinstance(tool_call, Mapping):
+                raise GatewayError("host model runner returned an invalid tool call")
+            function = tool_call.get("function")
+            if not isinstance(function, Mapping):
+                raise GatewayError("host model runner returned an invalid tool call")
+            name = function.get("name")
+            if not isinstance(name, str) or not name:
+                raise GatewayError("host model runner returned an invalid tool name")
+            if allowed_tool_names and name not in allowed_tool_names:
+                raise GatewayError("host model runner chose an unknown tool")
+            arguments = function.get("arguments", {})
+            if isinstance(arguments, str):
+                try:
+                    arguments = json.loads(arguments)
+                except json.JSONDecodeError:
+                    raise GatewayError(
+                        "host model runner returned invalid tool arguments"
+                    ) from None
+            if not isinstance(arguments, dict):
+                raise GatewayError("host model runner returned invalid tool arguments")
+            decision = {"action": "tool", "name": name, "arguments": arguments}
+            text = json.dumps(decision, ensure_ascii=False)
+            if len(text) > self.config.max_output_chars:
+                raise GatewayError("gateway tool arguments are too large")
+            return text
+        content = message.get("content")
+        if not isinstance(content, str) or not content.strip():
+            raise GatewayError("host model runner produced no assistant text")
+        text = redact_text(content).strip()
+        if len(text) > self.config.max_output_chars:
+            text = text[: self.config.max_output_chars]
+        return text
 
 
 def resolve_sandbox_executable(executable: str) -> str:
@@ -1249,7 +1467,12 @@ class AIGateway:
         self._lock = threading.Lock()
         self._started = False
         try:
-            self._runner = runner or HostModelRunner(config)
+            if runner is not None:
+                self._runner = runner
+            elif config.provider == "groq":
+                self._runner = GroqHostRunner(config)
+            else:
+                self._runner = HostModelRunner(config)
         except BaseException:
             self._temp.cleanup()
             raise
@@ -1330,7 +1553,7 @@ class AIGateway:
         with self._lock:
             if self.cancel_event is not None and self.cancel_event.is_set():
                 raise GatewayCancelledError("gateway request was cancelled")
-            raw = self._runner.complete(prompt, cancel_event=self.cancel_event)
+            raw = self._runner.complete(prompt, tools=tools, cancel_event=self.cancel_event)
             try:
                 decision = parse_gateway_decision(raw, allowed_tools=tool_names)
             except GatewayError:
@@ -1350,6 +1573,7 @@ class AIGateway:
                 )
                 raw = self._runner.complete(
                     repair[: self.config.max_prompt_chars],
+                    tools=tools,
                     cancel_event=self.cancel_event,
                 )
                 decision = parse_gateway_decision(raw, allowed_tools=tool_names)

@@ -57,6 +57,7 @@ def create_app(
         retry_delay_s=settings.retry_delay_s,
         gateway=GatewayConfig(
             enabled=settings.ai_gateway_enabled,
+            provider=settings.ai_gateway_provider,
             model=settings.ai_gateway_model,
             timeout_s=settings.ai_gateway_timeout_s,
             relay_port=settings.ai_gateway_relay_port,
