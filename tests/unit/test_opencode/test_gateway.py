@@ -12,7 +12,7 @@ import json
 import socket
 import sys
 import threading
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import Any
@@ -85,6 +85,7 @@ class FakeRunner:
         self,
         prompt: str,
         *,
+        tools: Sequence[Mapping[str, Any]] | None = None,
         timeout_s: float | None = None,
         cancel_event: threading.Event | None = None,
     ) -> str:

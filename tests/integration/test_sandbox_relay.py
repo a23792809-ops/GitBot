@@ -13,7 +13,9 @@ import json
 import socket
 import subprocess
 import threading
+from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -53,6 +55,7 @@ class _FakeRunner:
         self,
         prompt: str,
         *,
+        tools: Sequence[Mapping[str, Any]] | None = None,
         timeout_s: float | None = None,
         cancel_event: threading.Event | None = None,
     ) -> str:

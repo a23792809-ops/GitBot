@@ -12,9 +12,10 @@ import socket
 import subprocess
 import textwrap
 import threading
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -240,6 +241,7 @@ class FakeHostRunner:
         self,
         prompt: str,
         *,
+        tools: Sequence[Mapping[str, Any]] | None = None,
         timeout_s: float | None = None,
         cancel_event: threading.Event | None = None,
     ) -> str:
