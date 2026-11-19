@@ -710,3 +710,27 @@ sandbox:
 
 Do not describe the project as production-ready until live execution and the
 migration state are resolved.
+
+## 2026-11-20: Successful authorized real Groq ANALYZE verification
+
+The previously open live-provider blocker is resolved. One authorized real
+Groq-backed `ANALYZE` task was executed against a disposable synthetic
+repository and temporary database only.
+
+- Task: `tsk_QVIztiFGAmcIuhTaYIbt_w`
+- Provider: Groq
+- Model: `groq/openai/gpt-oss-20b`
+- Final status: `analyzed`
+- Sandbox: enabled (`sandboxed: true`)
+- Runtime: `128732 ms`
+
+The task produced genuine repository-specific findings from the disposable
+repository, including language identification, project purpose, and concrete
+code-quality observations. The source repository HEAD and working tree were
+unchanged, no approval/commit was created, and the production database and
+configuration were not modified. No retry, fallback provider, or additional
+live API request was used.
+
+This verification applies to the disposable test profile. Health endpoint
+`provider_verified` remains `false` because the automated suite does not make
+live provider calls; that behavior is intentional.
